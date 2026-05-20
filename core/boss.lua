@@ -43,6 +43,7 @@ function Boss.new(x, y)
     self.fireCooldownTimer = FIRE_COOLDOWN
     self.fireDamageTimer = 0.0
     self.isFiring = false
+    self.meleePause = 0.0
 
     local sets = SpriteLoader.getSet("zombies.boss")
     self.animations = {
@@ -146,7 +147,11 @@ function Boss:update(dt, player, gameMap, projectiles)
         end
     end
 
-    if not self.isFiring then
+    if self.meleePause > 0 then
+        self.meleePause = math.max(0, self.meleePause - dt)
+    end
+
+    if not self.isFiring and self.meleePause <= 0 then
         local nx = self.x + (distance > 0 and (dx / distance) or 0) * self.speed * dt
         if not gameMap:collidesWithRect(nx, self.y, self.width, self.height) then
             self.x = nx
@@ -159,19 +164,20 @@ function Boss:update(dt, player, gameMap, projectiles)
     end
 
     local nextState = "idle"
-    if self.isFiring then
+    if self.isFiring or self.meleePause > 0 then
         nextState = "attack"
     elseif distance > self.meleeRange then
         nextState = "walk"
     end
 
-    if not self.isFiring and distance <= self.meleeRange and self.meleeTimer >= self.meleeCooldown then
+    if not self.isFiring and self.meleePause <= 0 and distance <= self.meleeRange and self.meleeTimer >= self.meleeCooldown then
         if Collision.checkAABB(
             self.x, self.y, self.width, self.height,
             player.x, player.y, player.width, player.height
         ) then
             player:takeDamage(self.meleeDamage)
             self.meleeTimer = 0
+            self.meleePause = math.max(0.25, (self.animations.attack:getFrameCount() or 1) * self.animations.attack:getFrameDuration())
             nextState = "attack"
         end
     end

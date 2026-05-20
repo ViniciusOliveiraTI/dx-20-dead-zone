@@ -28,6 +28,7 @@ function Zombie.new(x, y, typeName, zombieType)
 
     self.attackCooldown = DEFAULT_ATTACK_COOLDOWN
     self.attackTimer = 0.0
+    self.attackPause = 0.0
 
     self.rotation = 0
     self.state = "idle"
@@ -74,6 +75,15 @@ function Zombie:update(dt, player, gameMap)
 
     self.attackTimer = self.attackTimer + dt
 
+    if self.attackPause > 0 then
+        self.attackPause = math.max(0, self.attackPause - dt)
+        self:changeState("attack")
+        if self.currentAnimation then
+            self.currentAnimation:update(dt)
+        end
+        return
+    end
+
     local dx = player.x - self.x
     local dy = player.y - self.y
     local len = math.sqrt(dx * dx + dy * dy)
@@ -98,12 +108,11 @@ function Zombie:update(dt, player, gameMap)
     if len > STANDARD_ATTACK_RANGE * 1.25 then
         nextState = "walk"
     else
-        if self.attackTimer >= self.attackCooldown then
-            if len <= STANDARD_ATTACK_RANGE then
-                player:takeDamage(self.damage)
-                self.attackTimer = 0
-                nextState = "attack"
-            end
+        if self.attackTimer >= self.attackCooldown and len <= STANDARD_ATTACK_RANGE then
+            player:takeDamage(self.damage)
+            self.attackTimer = 0
+            self.attackPause = math.max(0.2, (self.animations.attack:getFrameCount() or 1) * self.animations.attack:getFrameDuration())
+            nextState = "attack"
         end
     end
 

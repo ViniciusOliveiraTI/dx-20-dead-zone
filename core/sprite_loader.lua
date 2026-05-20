@@ -178,6 +178,21 @@ local function scanDirectory(path, segments, rawSets)
     end
 end
 
+local function cloneAnimation(animation)
+    if not animation or type(animation.clone) ~= "function" then
+        return animation
+    end
+    return animation:clone()
+end
+
+local function cloneAnimationSet(set)
+    local clone = {}
+    for key, animation in pairs(set) do
+        clone[key] = cloneAnimation(animation)
+    end
+    return clone
+end
+
 local function loadAnimations(targetSize)
     local cacheKey = tostring(targetSize or "default")
     if SpriteLoader.cache[cacheKey] then
@@ -203,7 +218,8 @@ end
 
 function SpriteLoader.getSet(key, targetSize)
     local allSets = loadAnimations(targetSize)
-    return allSets[key] or {}
+    local set = allSets[key] or {}
+    return cloneAnimationSet(set)
 end
 
 return SpriteLoader

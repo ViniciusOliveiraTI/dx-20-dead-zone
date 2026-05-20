@@ -96,6 +96,13 @@ function Animation:reset()
     self.currentIndex = 1
 end
 
+function Animation:clone()
+    local copy = Animation.new(self.frames, self.frameDuration, self.loop)
+    copy.timer = self.timer
+    copy.currentIndex = self.currentIndex
+    return copy
+end
+
 function Animation:update(dt)
     if #self.frames <= 1 then
         return

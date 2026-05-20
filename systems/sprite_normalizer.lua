@@ -4,7 +4,7 @@ local SpriteNormalizer = {}
 
 local cache = {}
 local BASE_TARGET_HEIGHT = 120
-local BOSS_TARGET_HEIGHT = 160
+
 local ENTITY_TARGET_HEIGHTS = {
     player = BASE_TARGET_HEIGHT,
     turret = 90,

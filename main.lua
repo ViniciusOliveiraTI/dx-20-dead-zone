@@ -42,6 +42,7 @@ local bossWarningActive = false
 local bossWarningElapsed = 0
 local bossWarningDuration = 3.0
 local bossWarningFont
+local defaultFont
 
 local function createPlayer()
     local pistol = Weapon.new({
@@ -117,6 +118,7 @@ local function resetGame(resetProgress)
     spawnTurrets()
 
     lighting = Lighting.new(love.graphics.getWidth(), love.graphics.getHeight())
+    defaultFont = love.graphics.getFont()
     bossWarningFont = love.graphics.newFont(24)
 
     gameState:set(GameState.states.playing)
@@ -440,6 +442,7 @@ function love.draw()
         love.graphics.setFont(bossWarningFont)
         love.graphics.setColor(1, 0.1, 0.1, alpha)
         love.graphics.printf("BOSS INCOMING", 0, love.graphics.getHeight() / 2 - 24, love.graphics.getWidth(), "center")
+        love.graphics.setFont(defaultFont)
         love.graphics.setColor(1,1,1,1)
     end
 end
