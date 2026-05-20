@@ -3,9 +3,18 @@ local SpriteLoader = require("core.sprite_loader")
 local SpriteNormalizer = {}
 
 local cache = {}
-local STANDARD_TARGET_HEIGHT = 160
-local BOSS_TARGET_HEIGHT = 220
-local MIN_SCALE = 0.25
+local BASE_TARGET_HEIGHT = 120
+local BOSS_TARGET_HEIGHT = 160
+local ENTITY_TARGET_HEIGHTS = {
+    player = BASE_TARGET_HEIGHT,
+    turret = 90,
+    ["zombies.normal"] = 150,
+    ["zombies.fast"] = 170,
+    ["zombies.brute"] = 155,
+    ["zombies.boss"] = 190
+}
+local DEFAULT_TARGET_HEIGHT = BASE_TARGET_HEIGHT
+local MIN_SCALE = 0.03
 local MAX_SCALE = 2.0
 
 local function getMaxFrameDimension(set)
@@ -31,14 +40,10 @@ function SpriteNormalizer.getScale(entityKey)
     local set = SpriteLoader.getSet(entityKey) or {}
     local maxDim = getMaxFrameDimension(set)
     if maxDim == 0 then
-        maxDim = STANDARD_TARGET_HEIGHT
+        maxDim = DEFAULT_TARGET_HEIGHT
     end
 
-    local targetHeight = STANDARD_TARGET_HEIGHT
-    if entityKey == "zombies.boss" then
-        targetHeight = BOSS_TARGET_HEIGHT
-    end
-
+    local targetHeight = ENTITY_TARGET_HEIGHTS[entityKey] or DEFAULT_TARGET_HEIGHT
     local scale = targetHeight / maxDim
     scale = math.max(MIN_SCALE, math.min(MAX_SCALE, scale))
 
