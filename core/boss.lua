@@ -125,7 +125,7 @@ function Boss:update(dt, player, gameMap)
     local dy = player.y + player.height / 2 - cy
     local distance = math.sqrt(dx * dx + dy * dy)
     if distance > 0 then
-        -- compute direction angle and keep sprite rotation offset for rendering
+
         local angle = math.atan2(dy, dx)
         self.rotation = angle - math.pi / 2
     end
