@@ -41,7 +41,7 @@ function Zombie.new(x, y, typeName, zombieType)
     self.animations = {
         idle = sets.idle or sets.walk or sets.attack or Animation.new({}, 0.3, true),
         walk = sets.walk or sets.idle or sets.attack or Animation.new({}, 0.1, true),
-        attack = sets.attack or sets.walk or sets.idle or Animation.new({}, 0.1, true),
+        attack = sets.melee_attack or sets.attack or sets.walk or sets.idle or Animation.new({}, 0.1, true),
         death = sets.death or sets.idle or Animation.new({}, 0.12, false)
     }
     self.currentAnimation = self.animations.idle

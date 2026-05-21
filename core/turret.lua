@@ -33,9 +33,22 @@ function Turret.new(x, y)
     local sets = SpriteLoader.getSet("turret")
     self.animations = {
         idle = sets.idle or Animation.new({}, 0.15, true),
-        shot = sets.attack or sets.idle or Animation.new({}, 0.1, true)
+        attack = sets.shot or sets.attack or sets.idle or Animation.new({}, 0.1, true)
     }
     self.currentAnimation = self.animations.idle
+
+    -- Ensure attack animation does not loop (shot should play once)
+    if self.animations.attack and type(self.animations.attack) == "table" then
+        self.animations.attack.loop = false
+    end
+
+    -- Ensure attack cooldown is at least the animation duration so it can finish
+    if self.animations.attack and type(self.animations.attack.getFrameCount) == "function" then
+        local frameCount = self.animations.attack:getFrameCount() or 1
+        local frameDur = self.animations.attack:getFrameDuration() or 0.1
+        local animDur = frameCount * frameDur
+        self.attackCooldown = math.max(self.attackCooldown, animDur + 0.05)
+    end
 
     return self
 end
@@ -65,7 +78,7 @@ function Turret:update(dt, player, projectiles)
     if len > 0 then
         dx = dx / len
         dy = dy / len
-        -- Offset -π/2 because sprites face south (down) and rotation must align with target direction
+
         self.rotation = math.atan2(dy, dx) - math.pi / 2
     end
 
@@ -84,14 +97,23 @@ function Turret:update(dt, player, projectiles)
         end
     end
 
+    -- If attack animation finished (non-looping), return to idle
+    if self.state == "attack" and self.currentAnimation and not self.currentAnimation.loop then
+        if self.currentAnimation:getCurrentIndex() >= self.currentAnimation:getFrameCount() then
+            self:changeState("idle")
+        end
+    end
+
     if self.attackTimer < self.attackCooldown then
-        self:changeState("idle")
+        if self.state ~= "attack" then
+            self:changeState("idle")
+        end
         return
     end
 
     self.attackTimer = self.attackTimer - self.attackCooldown
     -- Trigger shot animation and defer projectile spawn until animation timing
-    self:changeState("shot")
+    self:changeState("attack")
     if len <= 0 then
         return
     end
@@ -110,6 +132,7 @@ function Turret:changeState(newState)
     if nextAnim and nextAnim ~= self.currentAnimation then
         self.currentAnimation = nextAnim
         self.currentAnimation:reset()
+        print("[Turret] changeState:", newState, "frames=", self.currentAnimation:getFrameCount())
     end
 end
 

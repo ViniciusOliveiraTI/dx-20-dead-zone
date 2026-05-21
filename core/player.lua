@@ -31,7 +31,7 @@ function Player.new(x, y, weapon)
     self.animations = {
         idle = sets.idle or sets.walk or sets.attack or Animation.new({}, 0.3, true),
         walk = sets.walk or sets.idle or sets.attack or Animation.new({}, 0.15, true),
-        attack = sets.attack or sets.idle or sets.walk or Animation.new({}, 0.12, true),
+        attack = sets.shot or sets.attack or sets.idle or sets.walk or Animation.new({}, 0.12, true),
         death = sets.death or sets.idle or Animation.new({}, 0.12, false)
     }
     self.currentAnimation = self.animations.idle
@@ -112,6 +112,7 @@ function Player:changeState(newState)
     if animation and animation ~= self.currentAnimation then
         self.currentAnimation = animation
         self.currentAnimation:reset()
+        print("[Player] changeState:", newState, "frames=", self.currentAnimation:getFrameCount())
     end
 end
 

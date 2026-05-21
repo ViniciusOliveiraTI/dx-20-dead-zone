@@ -5,11 +5,14 @@ local SpriteLoader = {
     cache = {}
 }
 
-local categories = {
-    idle = { "idle", "stand", "rest" },
-    walk = { "walk", "run", "move" },
-    attack = { "attack", "melee", "shoot", "fire", "shot" },
-    death = { "death", "die", "dead" }
+local categoryPatterns = {
+    { "fire_attack", { "fire_attack", "fire", "breath" } },
+    { "melee_attack", { "melee_attack", "melee" } },
+    { "shot", { "shot" } },
+    { "attack", { "attack" } },
+    { "walk", { "walk", "run", "move" } },
+    { "idle", { "idle", "stand", "rest" } },
+    { "death", { "death", "die", "dead" } }
 }
 
 local function containsAny(value, patterns)
@@ -26,8 +29,19 @@ local function containsAny(value, patterns)
 end
 
 local function classifyToken(token)
-    for category, patterns in pairs(categories) do
+    for _, entry in ipairs(categoryPatterns) do
+        local category, patterns = entry[1], entry[2]
         if containsAny(token, patterns) then
+            return category
+        end
+    end
+    return nil
+end
+
+local function classifySegments(segments)
+    for i = #segments, 1, -1 do
+        local category = classifyToken(segments[i])
+        if category then
             return category
         end
     end
@@ -41,7 +55,25 @@ local function getEntityKey(segments)
     return segments[1]
 end
 
+local function extractNumericSuffix(name)
+    local base = name:match("(.+)%.%w+$") or name
+    local numeric = base:match("(%d+)$")
+    return numeric and tonumber(numeric)
+end
+
 local function sortNames(a, b)
+    local aIndex = extractNumericSuffix(a)
+    local bIndex = extractNumericSuffix(b)
+    if aIndex and bIndex then
+        if aIndex ~= bIndex then
+            return aIndex < bIndex
+        end
+        return a < b
+    elseif aIndex then
+        return true
+    elseif bIndex then
+        return false
+    end
     return a < b
 end
 
@@ -130,12 +162,6 @@ local function buildAnimationsForEntity(rawAnimationSets, targetSize)
         end
     end
 
-    if animations.attack then
-        animations.shot = animations.shot or animations.attack
-        animations.fire_attack = animations.fire_attack or animations.attack
-        animations.melee_attack = animations.melee_attack or animations.attack
-    end
-
     return animations
 end
 
@@ -158,11 +184,12 @@ local function scanDirectory(path, segments, rawSets)
     if hasImageFiles then
         local entityKey = getEntityKey(segments)
         if entityKey then
-            local category = classifyToken(segments[#segments]) or "idle"
+            local category = classifySegments(segments) or "idle"
             local frames = loadRawFrames(path)
             if frames then
                 rawSets[entityKey] = rawSets[entityKey] or {}
                 rawSets[entityKey][category] = frames
+                print("[SpriteLoader] Loaded:", entityKey, category, "#frames=", #frames, "path=", path)
             end
         end
     end
@@ -213,6 +240,7 @@ local function loadAnimations(targetSize)
     end
 
     SpriteLoader.cache[cacheKey] = sets
+    print("[SpriteLoader] Animation cache ready for targetSize=", tostring(targetSize or "default"))
     return sets
 end
 

@@ -6,6 +6,7 @@ local SpriteNormalizer = require("systems.sprite_normalizer")
 local DEATH_DURATION = 1.4
 local FIRE_DURATION = 3.0
 local FIRE_COOLDOWN = 10.0
+local FIRE_PREPARE = 0.5
 local FIRE_DAMAGE_TICK = 0.3
 
 local Boss = {}
@@ -43,13 +44,17 @@ function Boss.new(x, y)
     self.fireCooldownTimer = FIRE_COOLDOWN
     self.fireDamageTimer = 0.0
     self.isFiring = false
+    self.isPreparingFire = false
+    self.fireDelayTimer = 0.0
     self.meleePause = 0.0
 
     local sets = SpriteLoader.getSet("zombies.boss")
     self.animations = {
-        idle = sets.idle or sets.walk or sets.attack or Animation.new({}, 0.3, true),
-        walk = sets.walk or sets.idle or sets.attack or Animation.new({}, 0.15, true),
-        attack = sets.fire_attack or sets.attack or sets.melee_attack or sets.walk or Animation.new({}, 0.1, true),
+        idle = sets.idle or sets.walk or Animation.new({}, 0.3, true),
+        walk = sets.walk or sets.idle or Animation.new({}, 0.15, true),
+        fire_attack = sets.fire_attack or sets.attack,
+        melee_attack = sets.melee_attack or sets.attack,
+        attack = sets.attack or sets.walk or sets.idle or Animation.new({}, 0.1, true),
         death = sets.death or sets.idle or Animation.new({}, 0.12, false)
     }
     self.currentAnimation = self.animations.idle
@@ -57,15 +62,16 @@ function Boss.new(x, y)
     return self
 end
 
-function Boss:changeState(newState)
-    if self.state == newState then
+function Boss:changeState(newState, animationKey)
+    if self.state == newState and not animationKey then
         return
     end
     self.state = newState
-    local nextAnim = self.animations[newState] or self.animations.idle
+    local nextAnim = animationKey and self.animations[animationKey] or self.animations[newState] or self.animations.idle
     if nextAnim and nextAnim ~= self.currentAnimation then
         self.currentAnimation = nextAnim
         self.currentAnimation:reset()
+        print("[Boss] changeState:", newState, "animationKey:", animationKey or newState, "frames=", self.currentAnimation:getFrameCount())
     end
 end
 
@@ -136,14 +142,25 @@ function Boss:update(dt, player, gameMap, projectiles)
             self.isFiring = false
             self.fireTimer = 0
             self.fireCooldownTimer = 0
+            print("[Boss] fire_attack complete")
+        end
+    elseif self.isPreparingFire then
+        self.fireDelayTimer = self.fireDelayTimer + dt
+        if self.fireDelayTimer >= FIRE_PREPARE then
+            self.isPreparingFire = false
+            self.isFiring = true
+            self.fireTimer = 0
+            self.fireDamageTimer = 0
+            print("[Boss] fire_attack started")
         end
     else
         self.fireCooldownTimer = self.fireCooldownTimer + dt
         self.meleeTimer = self.meleeTimer + dt
         if self.fireCooldownTimer >= FIRE_COOLDOWN and distance > self.meleeRange then
-            self.isFiring = true
-            self.fireTimer = 0
-            self.fireDamageTimer = 0
+            self.isPreparingFire = true
+            self.fireDelayTimer = 0
+            self.fireCooldownTimer = 0
+            print("[Boss] preparing fire_attack delay=", FIRE_PREPARE)
         end
     end
 
@@ -151,7 +168,7 @@ function Boss:update(dt, player, gameMap, projectiles)
         self.meleePause = math.max(0, self.meleePause - dt)
     end
 
-    if not self.isFiring and self.meleePause <= 0 then
+    if not self.isFiring and not self.isPreparingFire and self.meleePause <= 0 then
         local nx = self.x + (distance > 0 and (dx / distance) or 0) * self.speed * dt
         if not gameMap:collidesWithRect(nx, self.y, self.width, self.height) then
             self.x = nx
@@ -164,25 +181,31 @@ function Boss:update(dt, player, gameMap, projectiles)
     end
 
     local nextState = "idle"
-    if self.isFiring or self.meleePause > 0 then
+    local animationKey = nil
+    if self.isFiring then
         nextState = "attack"
+        animationKey = "fire_attack"
+    elseif self.meleePause > 0 then
+        nextState = "attack"
+        animationKey = "melee_attack"
     elseif distance > self.meleeRange then
         nextState = "walk"
     end
 
-    if not self.isFiring and self.meleePause <= 0 and distance <= self.meleeRange and self.meleeTimer >= self.meleeCooldown then
+    if not self.isFiring and not self.isPreparingFire and self.meleePause <= 0 and distance <= self.meleeRange and self.meleeTimer >= self.meleeCooldown then
         if Collision.checkAABB(
             self.x, self.y, self.width, self.height,
             player.x, player.y, player.width, player.height
         ) then
             player:takeDamage(self.meleeDamage)
             self.meleeTimer = 0
-            self.meleePause = math.max(0.25, (self.animations.attack:getFrameCount() or 1) * self.animations.attack:getFrameDuration())
+            self.meleePause = math.max(0.25, (self.animations.melee_attack and self.animations.melee_attack:getFrameCount() or 1) * self.animations.melee_attack:getFrameDuration())
             nextState = "attack"
+            animationKey = "melee_attack"
         end
     end
 
-    self:changeState(nextState)
+    self:changeState(nextState, animationKey)
     if self.currentAnimation then
         self.currentAnimation:update(dt)
     end

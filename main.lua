@@ -441,7 +441,7 @@ function love.draw()
         local alpha = 1 - (bossWarningElapsed / bossWarningDuration)
         love.graphics.setFont(bossWarningFont)
         love.graphics.setColor(1, 0.1, 0.1, alpha)
-        love.graphics.printf("BOSS INCOMING", 0, love.graphics.getHeight() / 2 - 24, love.graphics.getWidth(), "center")
+        love.graphics.printf("FALHA DE CONTENÇÃO. ELE ESTÁ VINDO", 0, love.graphics.getHeight() / 2 - 24, love.graphics.getWidth(), "center")
         love.graphics.setFont(defaultFont)
         love.graphics.setColor(1,1,1,1)
     end

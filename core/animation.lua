@@ -1,7 +1,25 @@
 local Animation = {}
 Animation.__index = Animation
 
+local function extractNumericSuffix(name)
+    local base = name:match("(.+)%.%w+$") or name
+    local numeric = base:match("(%d+)$")
+    return numeric and tonumber(numeric)
+end
+
 local function sortNames(a, b)
+    local aIndex = extractNumericSuffix(a)
+    local bIndex = extractNumericSuffix(b)
+    if aIndex and bIndex then
+        if aIndex ~= bIndex then
+            return aIndex < bIndex
+        end
+        return a < b
+    elseif aIndex then
+        return true
+    elseif bIndex then
+        return false
+    end
     return a < b
 end
 

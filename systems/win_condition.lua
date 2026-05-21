@@ -2,11 +2,11 @@ local WinCondition = {}
 WinCondition.__index = WinCondition
 
 WinCondition.levels = {
-    { mapPath = "maps/map01.txt", target = 3 },
-    { mapPath = "maps/map02.txt", target = 4 },
-    { mapPath = "maps/map03.txt", target = 5 },
-    { mapPath = "maps/map04.txt", target = 6 },
-    { mapPath = "maps/map05.txt", target = 4 }
+    { mapPath = "maps/map01.txt", target = 2 },
+    { mapPath = "maps/map02.txt", target = 1 },
+    { mapPath = "maps/map03.txt", target = 1 },
+    { mapPath = "maps/map04.txt", target = 1 },
+    { mapPath = "maps/map05.txt", target = 1 }
 }
 
 function WinCondition.new()
