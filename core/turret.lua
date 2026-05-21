@@ -8,7 +8,7 @@ local DEATH_DURATION = 1.0
 local Turret = {}
 Turret.__index = Turret
 
-function Turret.new(x, y)
+function Turret.new(x, y, worldWidth, worldHeight)
     local self = setmetatable({}, Turret)
 
     self.x = x or 0
@@ -49,6 +49,18 @@ function Turret.new(x, y)
         local animDur = frameCount * frameDur
         self.attackCooldown = math.max(self.attackCooldown, animDur + 0.05)
     end
+
+    -- Compute shoot range proportional to map/world size if provided, otherwise fallback heuristic
+    if worldWidth and worldHeight then
+        local minDim = math.min(worldWidth, worldHeight)
+        -- turrets shoot up to ~15% of the smaller world dimension by default
+        self.shootRange = math.max(64, math.floor(minDim * 0.25))
+    else
+        -- fallback: a reasonable default range in pixels
+        self.shootRange = 300
+    end
+
+    print("[Turret] shootRange=", self.shootRange)
 
     return self
 end
@@ -111,16 +123,20 @@ function Turret:update(dt, player, projectiles)
         return
     end
 
-    self.attackTimer = self.attackTimer - self.attackCooldown
-    -- Trigger shot animation and defer projectile spawn until animation timing
-    self:changeState("attack")
-    if len <= 0 then
-        return
+    -- Only fire if player is within shootRange
+    if self.shootRange and len <= self.shootRange and len > 0 then
+        self.attackTimer = self.attackTimer - self.attackCooldown
+        -- Trigger shot animation and defer projectile spawn until animation timing
+        self:changeState("attack")
+        -- queue projectile to spawn when animation reaches its mid frame
+        self.pendingFire = true
+        self.pendingFireDir = { x = dx, y = dy }
+    else
+        -- out of range: do not consume cooldown, stay idle
+        if self.state ~= "attack" then
+            self:changeState("idle")
+        end
     end
-
-    -- queue projectile to spawn when animation reaches its mid frame
-    self.pendingFire = true
-    self.pendingFireDir = { x = dx, y = dy }
 end
 
 function Turret:changeState(newState)

@@ -59,7 +59,10 @@ end
 
 local function spawnTurrets()
     for _, spawn in ipairs(gameMap.turretSpawns or {}) do
-        table.insert(turrets, Turret.new(spawn.x, spawn.y))
+        -- pass world dimensions so turrets can compute a proportional shoot range
+        local worldW = gameMap.width * gameMap.tileSize
+        local worldH = gameMap.height * gameMap.tileSize
+        table.insert(turrets, Turret.new(spawn.x, spawn.y, worldW, worldH))
     end
 end
 
