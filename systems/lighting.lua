@@ -19,9 +19,14 @@ function Lighting.new(screenWidth, screenHeight)
             float dx = sc.x - lightPos.x;
             float dy = sc.y - lightPos.y;
             float dist = sqrt(dx*dx + dy*dy);
+
             float edge0 = radius - softness;
             float t = 1.0 - smoothstep(edge0, radius, dist);
-            vec3 col = mix(darkColor, vec3(1.0), t);
+
+            // 🔥 NOVO: tom amarelado suave
+            vec3 lightColor = vec3(1.0, 0.95, 0.85);
+
+            vec3 col = mix(darkColor, lightColor, t);
             return vec4(col, 1.0);
         }
     ]]
@@ -31,7 +36,7 @@ function Lighting.new(screenWidth, screenHeight)
         if ok then
             self.shader = sh
             -- sensible defaults
-            self.shader:send("darkColor", {0.08, 0.08, 0.08})
+            self.shader:send("darkColor", {0.18, 0.18, 0.16})
             self.shader:send("radius", self.defaultRadius)
             self.shader:send("softness", self.defaultSoftness)
         else
