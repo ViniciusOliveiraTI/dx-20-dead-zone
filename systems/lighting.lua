@@ -23,7 +23,6 @@ function Lighting.new(screenWidth, screenHeight)
             float edge0 = radius - softness;
             float t = 1.0 - smoothstep(edge0, radius, dist);
 
-            // 🔥 NOVO: tom amarelado suave
             vec3 lightColor = vec3(1.0, 0.95, 0.85);
 
             vec3 col = mix(darkColor, lightColor, t);

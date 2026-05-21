@@ -18,15 +18,14 @@ local ZombieTypes = {
         color = {0.5, 0.3, 0.3}
     },
     boss = {
-        speed = 35,
-        meleeDamage = 35,
+        speed = 90,
+        meleeDamage = 25,
         rangedDamage = 20,
         health = 650,
         color = {0.8, 0.1, 0.1},
         meleeRange = 70,
-        rangedRange = 250,
+        rangedRange = 150,
         meleeCooldown = 1.2,
-        rangedCooldown = 10.0
     }
 }
 

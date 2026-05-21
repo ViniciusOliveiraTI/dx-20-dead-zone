@@ -5,8 +5,8 @@ local SpriteNormalizer = require("systems.sprite_normalizer")
 
 local DEATH_DURATION = 1.4
 local FIRE_DURATION = 3.0
-local FIRE_COOLDOWN = 10.0
-local FIRE_PREPARE = 0.5
+local FIRE_COOLDOWN = 7
+local FIRE_PREPARE = 1
 local FIRE_DAMAGE_TICK = 0.3
 
 local Boss = {}
@@ -17,7 +17,7 @@ function Boss.new(x, y)
 
     self.x = x or 0
     self.y = y or 0
-    -- Boss is significantly larger than standard enemies
+
     self.width = 64
     self.height = 96
 
@@ -108,7 +108,7 @@ function Boss:dealBreathDamage(player)
     end
 end
 
-function Boss:update(dt, player, gameMap, projectiles)
+function Boss:update(dt, player, gameMap)
     if self.dying then
         self.deathTimer = self.deathTimer + dt
         self.fadeAlpha = math.max(0, 1 - self.deathTimer / DEATH_DURATION)
@@ -144,8 +144,11 @@ function Boss:update(dt, player, gameMap, projectiles)
             self.fireCooldownTimer = 0
             print("[Boss] fire_attack complete")
         end
+
     elseif self.isPreparingFire then
+        self:changeState("attack", "fire_attack")
         self.fireDelayTimer = self.fireDelayTimer + dt
+        
         if self.fireDelayTimer >= FIRE_PREPARE then
             self.isPreparingFire = false
             self.isFiring = true
@@ -215,19 +218,29 @@ function Boss:draw()
     if not self.alive and not self.dying then
         return
     end
-
+        
     local cx = self.x + self.width / 2
     local cy = self.y + self.height / 2
-    if self.isFiring then
+
+    if self.isFiring or self.isPreparingFire then
         local breathOffset = math.max(self.width * 0.45, 20)
         local breathRange = self.rangedRange or self.meleeRange * 4
         local breathWidth = math.max(breathRange * 0.35, self.width * 1.2)
-        -- Draw breath using the forward angle (rotation + π/2)
+
         local angle = self.rotation + math.pi / 2
+
         love.graphics.push()
         love.graphics.translate(cx, cy)
         love.graphics.rotate(angle)
-        love.graphics.setColor(1, 0.5, 0, 0.3 * self.fadeAlpha)
+
+        if self.isPreparingFire then
+            -- 🔥 PREPARO (telegraph)
+            love.graphics.setColor(1, 0.8, 0.2, 0.25 * self.fadeAlpha)
+        else
+            -- 🔥 ATAQUE ativo
+            love.graphics.setColor(1, 0.5, 0, 0.35 * self.fadeAlpha)
+        end
+
         love.graphics.rectangle("fill", breathOffset, -breathWidth / 2, breathRange, breathWidth)
         love.graphics.pop()
     end
