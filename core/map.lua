@@ -209,14 +209,52 @@ function Map:draw()
             local def = TileDefs[char]
 
             if def then
-                love.graphics.setColor(def.color)
-                love.graphics.rectangle(
-                    "fill",
-                    (x - 1) * self.tileSize,
-                    (y - 1) * self.tileSize,
-                    self.tileSize,
-                    self.tileSize
-                )
+                -- If a sprite path is provided, attempt lazy load and draw the image
+                if def.spritePath then
+                    if not def._spriteImage and love and love.graphics and love.graphics.newImage then
+                        local ok, img = pcall(love.graphics.newImage, def.spritePath)
+                        if ok and img then
+                            def._spriteImage = img
+                            local iw, ih = img:getDimensions()
+                            def._spriteScale = { x = self.tileSize / iw, y = self.tileSize / ih }
+                            def._spriteOrig = { x = iw / 2, y = ih / 2 }
+                        end
+                    end
+
+                    if def._spriteImage then
+                        local img = def._spriteImage
+                        local s = def._spriteScale or { x = 1, y = 1 }
+                        love.graphics.setColor(1, 1, 1)
+                        love.graphics.draw(
+                            img,
+                            (x - 1) * self.tileSize + self.tileSize / 2,
+                            (y - 1) * self.tileSize + self.tileSize / 2,
+                            0,
+                            s.x,
+                            s.y,
+                            def._spriteOrig.x,
+                            def._spriteOrig.y
+                        )
+                    else
+                        love.graphics.setColor(def.color)
+                        love.graphics.rectangle(
+                            "fill",
+                            (x - 1) * self.tileSize,
+                            (y - 1) * self.tileSize,
+                            self.tileSize,
+                            self.tileSize
+                        )
+                    end
+                else
+                    love.graphics.setColor(def.color)
+                    love.graphics.rectangle(
+                        "fill",
+                        (x - 1) * self.tileSize,
+                        (y - 1) * self.tileSize,
+                        self.tileSize,
+                        self.tileSize
+                    )
+                end
             end
         end
     end
