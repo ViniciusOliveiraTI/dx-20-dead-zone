@@ -14,6 +14,7 @@ local HealthPickup = require("core.health_pickup")
 local EnemySpawner = require("systems.enemy_spawner")
 local GameState = require("systems.game_state")
 local WinCondition = require("systems.win_condition")
+local LevelConfig = require("systems.level_config")
 local Lighting = require("systems.lighting")
 
 local HealthBar = require("ui.health_bar")
@@ -58,6 +59,13 @@ local function createPlayer()
 end
 
 local function spawnTurrets()
+    local levelConfig = LevelConfig.getForLevel(winCondition.currentLevel)
+    
+    -- Only spawn turrets if allowed in this level
+    if not levelConfig.allowTurrets then
+        return
+    end
+    
     for _, spawn in ipairs(gameMap.turretSpawns or {}) do
         -- pass world dimensions so turrets can compute a proportional shoot range
         local worldW = gameMap.width * gameMap.tileSize
@@ -117,7 +125,8 @@ local function resetGame(resetProgress)
     shootAction = PlayerShootAction.new(player, projectiles, camera)
     reloadAction = PlayerReloadAction.new(player)
 
-    spawner = EnemySpawner.new(gameMap, zombies)
+    local levelConfig = LevelConfig.getForLevel(winCondition.currentLevel)
+    spawner = EnemySpawner.new(gameMap, zombies, levelConfig)
     spawnTurrets()
 
     lighting = Lighting.new(love.graphics.getWidth(), love.graphics.getHeight())

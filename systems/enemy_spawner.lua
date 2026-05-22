@@ -4,17 +4,19 @@ local ZombieTypes = require("core.zombie_types")
 local EnemySpawner = {}
 EnemySpawner.__index = EnemySpawner
 
-function EnemySpawner.new(map, zombies, maxEnemies)
+function EnemySpawner.new(map, zombies, levelConfig, maxEnemies)
     local self = setmetatable({}, EnemySpawner)
 
     self.map = map
     self.zombies = zombies
+    self.levelConfig = levelConfig or {}
     self.maxEnemies = maxEnemies or 12
 
     self.spawnCooldown = 2
     self.timer = 0
 
-    self.typeNames = { "normal", "fast", "brute" }
+    -- Use allowed enemies from level config, or default to all types
+    self.typeNames = self.levelConfig.allowedEnemies or { "normal", "fast", "brute" }
 
     return self
 end
@@ -50,6 +52,11 @@ function EnemySpawner:update(dt, gameState, winCondition)
 
     local spawn = self:getRandomSpawnPoint()
     if not spawn then
+        return
+    end
+
+    -- Select only from allowed enemies for this level
+    if #self.typeNames == 0 then
         return
     end
 

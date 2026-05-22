@@ -1,12 +1,14 @@
+local LevelConfig = require("systems.level_config")
+
 local WinCondition = {}
 WinCondition.__index = WinCondition
 
 WinCondition.levels = {
-    { mapPath = "maps/map01.txt", target = 2 },
-    { mapPath = "maps/map02.txt", target = 1 },
-    { mapPath = "maps/map03.txt", target = 1 },
-    { mapPath = "maps/map04.txt", target = 1 },
-    { mapPath = "maps/map05.txt", target = 1 }
+    { mapPath = "maps/map01.txt" },
+    { mapPath = "maps/map02.txt" },
+    { mapPath = "maps/map03.txt" },
+    { mapPath = "maps/map04.txt" },
+    { mapPath = "maps/map05.txt" }
 }
 
 function WinCondition.new()
@@ -23,7 +25,8 @@ function WinCondition:currentMapPath()
 end
 
 function WinCondition:currentTarget()
-    return self.levels[self.currentLevel].target
+    local config = LevelConfig.getForLevel(self.currentLevel)
+    return config.killTarget or 5
 end
 
 function WinCondition:isLevelComplete()
