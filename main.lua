@@ -435,7 +435,7 @@ function love.draw()
     -- Lighting overlay (screen-space): darken scene except around player
     if lighting and player and camera then
         local sx, sy = camera:toScreen(player.x + player.width / 2, player.y + player.height / 2)
-        lighting:draw(sx, sy, 160)
+        lighting:draw(sx, sy, 150)
     end
 
     HUD.draw(player, player.weapon, winCondition)
