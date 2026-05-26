@@ -1,15 +1,20 @@
 local HUD = {}
 HUD.__index = HUD
 
-function HUD.draw(player, weapon, winCondition)
-    if not weapon or not winCondition then
+function HUD.draw(player, winCondition)
+    if not player or not winCondition then
+        return
+    end
+
+    local weapon = player:getCurrentWeapon()
+    if not weapon then
         return
     end
 
     local x = 10
     local y = 10
-    local width = 260
-    local height = 108
+    local width = 280
+    local height = 150
 
     love.graphics.setColor(0, 0, 0, 0.55)
     love.graphics.rectangle("fill", x, y, width, height, 6, 6)
@@ -24,17 +29,18 @@ function HUD.draw(player, weapon, winCondition)
     )
 
     love.graphics.printf(
-        string.format("Health: %d / %d", player.health, player.maxHealth),
+        string.format("Kills: %d / %d", winCondition.killCount, winCondition:currentTarget()),
         x + 8,
-        y + 24,
+        y + 28,
         width - 16,
         "left"
     )
 
+    local weaponName = weapon.weaponName or "Unknown"
     love.graphics.printf(
-        string.format("Kills: %d / %d", winCondition.killCount, winCondition:currentTarget()),
+        string.format("Weapon: %s", weaponName),
         x + 8,
-        y + 42,
+        y + 50,
         width - 16,
         "left"
     )
@@ -42,7 +48,7 @@ function HUD.draw(player, weapon, winCondition)
     love.graphics.printf(
         string.format("Ammo: %d / %d", weapon.clipAmmo, weapon.clipSize),
         x + 8,
-        y + 60,
+        y + 70,
         width - 16,
         "left"
     )
@@ -50,7 +56,15 @@ function HUD.draw(player, weapon, winCondition)
     love.graphics.printf(
         string.format("Reserve: %d / %d", weapon.reserveAmmo, weapon.maxReserveAmmo),
         x + 8,
-        y + 78,
+        y + 90,
+        width - 16,
+        "left"
+    )
+
+    love.graphics.printf(
+        "Press Q para trocar de arma",
+        x + 8,
+        y + 110,
         width - 16,
         "left"
     )
@@ -59,7 +73,7 @@ function HUD.draw(player, weapon, winCondition)
         love.graphics.printf(
             "Reloading...",
             x + 8,
-            y + 96,
+            y + 130,
             width - 16,
             "left"
         )

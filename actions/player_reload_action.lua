@@ -12,12 +12,13 @@ function PlayerReloadAction:execute(gameState)
         return
     end
 
-    if not self.player.weapon then
+    local weapon = self.player:getCurrentWeapon()
+    if not weapon then
         return
     end
 
     if love.keyboard.isDown("r") then
-        self.player.weapon:reload()
+        weapon:reload()
     end
 end
 

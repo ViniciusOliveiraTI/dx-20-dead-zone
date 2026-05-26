@@ -20,7 +20,8 @@ function PlayerShootAction:execute(gameState)
         return
     end
 
-    if not self.player.weapon then
+    local weapon = self.player:getCurrentWeapon()
+    if not weapon then
         return
     end
 
@@ -28,7 +29,7 @@ function PlayerShootAction:execute(gameState)
         return
     end
 
-    if self.player.weapon:shoot() then
+    if weapon:shoot() then
         if self.player.onShoot then
             self.player:onShoot()
         end
@@ -52,7 +53,10 @@ function PlayerShootAction:execute(gameState)
         dy = dy / len
 
         local Projectile = require("core.projectile")
-        table.insert(self.projectiles, Projectile.new(px, py, dx, dy))
+        local damage = weapon.damage or 10
+        local projectile = Projectile.new(px, py, dx, dy)
+        projectile.damage = damage
+        table.insert(self.projectiles, projectile)
     end
 end
 

@@ -1,11 +1,12 @@
 local Animation = require("core.animation")
 local SpriteLoader = require("core.sprite_loader")
 local SpriteNormalizer = require("systems.sprite_normalizer")
+local Inventory = require("core.inventory")
 
 local Player = {}
 Player.__index = Player
 
-function Player.new(x, y, weapon)
+function Player.new(x, y, inventory)
     local self = setmetatable({}, Player)
 
     self.x = x or 0
@@ -14,9 +15,9 @@ function Player.new(x, y, weapon)
     self.height = 30
     self.speed = 200
 
-    self.maxHealth = 100
+    self.maxHealth = 10000000000
     self.health = self.maxHealth
-    self.weapon = weapon
+    self.inventory = inventory
 
     self.rotation = 0
     self.isMoving = false
@@ -27,13 +28,7 @@ function Player.new(x, y, weapon)
     self.alpha = 1
     self.state = "idle"
 
-    local sets = SpriteLoader.getSet("player")
-    self.animations = {
-        idle = sets.idle or sets.walk or sets.attack or Animation.new({}, 0.3, true),
-        walk = sets.walk or sets.idle or sets.attack or Animation.new({}, 0.15, true),
-        attack = sets.shot or sets.attack or sets.idle or sets.walk or Animation.new({}, 0.12, true),
-        death = sets.death or sets.idle or Animation.new({}, 0.12, false)
-    }
+    self:loadAnimations()
     self.currentAnimation = self.animations.idle
     self.attackCooldown = 0.5
     self.attackTimer = self.attackCooldown
@@ -41,13 +36,57 @@ function Player.new(x, y, weapon)
     return self
 end
 
+function Player:getCurrentWeapon()
+    if self.inventory then
+        return self.inventory:getCurrentWeapon()
+    end
+    return nil
+end
+
+function Player:loadAnimations()
+    local weaponId = "pistol"
+    if self.inventory then
+        weaponId = self.inventory:getCurrentWeaponId() or "pistol"
+    end
+    
+    local setsKey = "player." .. weaponId
+    local sets = SpriteLoader.getSet(setsKey)
+    
+    if not next(sets) then
+        sets = SpriteLoader.getSet("player")
+    end
+    
+    self.animations = {
+        idle = sets.idle or sets.walk or sets.attack or Animation.new({}, 0.3, true),
+        walk = sets.walk or sets.idle or sets.attack or Animation.new({}, 0.15, true),
+        attack = sets.shot or sets.attack or sets.idle or sets.walk or Animation.new({}, 0.12, true),
+        death = sets.death or sets.idle or Animation.new({}, 0.12, false)
+    }
+end
+
+function Player:switchWeapon()
+    if not self.inventory then
+        return false
+    end
+    
+    if not self.inventory:switchWeapon() then
+        return false
+    end
+    
+    local currentState = self.state or "idle"
+    self:loadAnimations()
+    self:changeState(currentState)
+    return true
+end
+
 function Player:onShoot()
     self.attackTimer = 0
 end
 
 function Player:update(dt, camera)
-    if self.weapon then
-        self.weapon:update(dt)
+    local weapon = self:getCurrentWeapon()
+    if weapon then
+        weapon:update(dt)
     end
 
     local mx, my = love.mouse.getPosition()
@@ -103,16 +142,14 @@ function Player:draw()
 end
 
 function Player:changeState(newState)
-    if self.state == newState then
-        return
-    end
-
     self.state = newState
     local animation = self.animations[newState] or self.animations.idle
     if animation and animation ~= self.currentAnimation then
         self.currentAnimation = animation
         self.currentAnimation:reset()
         print("[Player] changeState:", newState, "frames=", self.currentAnimation:getFrameCount())
+    elseif not self.currentAnimation then
+        self.currentAnimation = animation
     end
 end
 
@@ -136,11 +173,12 @@ function Player:isDeathComplete()
 end
 
 function Player:pickupAmmo(amount)
-    if not self.weapon or amount <= 0 then
+    local weapon = self:getCurrentWeapon()
+    if not weapon or amount <= 0 then
         return
     end
 
-    self.weapon:addReserve(amount)
+    weapon:addReserve(amount)
 end
 
 return Player

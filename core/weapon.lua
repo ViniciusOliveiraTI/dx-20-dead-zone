@@ -4,6 +4,10 @@ Weapon.__index = Weapon
 function Weapon.new(config)
     local self = setmetatable({}, Weapon)
 
+    self.weaponId = config.weaponId or "pistol"
+    self.weaponName = config.weaponName or "Pistol"
+    self.damage = config.damage or 10
+
     self.clipSize = config.clipSize or 12
     self.clipAmmo = self.clipSize
     self.reserveAmmo = config.reserveAmmo or 48

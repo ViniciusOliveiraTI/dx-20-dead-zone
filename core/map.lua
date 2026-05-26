@@ -14,6 +14,7 @@ function Map.new(tileSize)
     self.enemySpawns = {}
     self.turretSpawns = {}
     self.bossSpawn = nil
+    self.rifleSpawn = nil
 
     return self
 end
@@ -26,6 +27,7 @@ function Map:loadFromFile(path)
     self.enemySpawns = {}
     self.turretSpawns = {}
     self.bossSpawn = nil
+    self.rifleSpawn = nil
 
     local y = 1
     for line in love.filesystem.lines(path) do
@@ -55,6 +57,12 @@ function Map:loadFromFile(path)
                 char = "."
             elseif char == "B" then
                 self.bossSpawn = {
+                    x = (x - 1) * self.tileSize,
+                    y = (y - 1) * self.tileSize
+                }
+                char = "."
+            elseif char == "G" then
+                self.rifleSpawn = {
                     x = (x - 1) * self.tileSize,
                     y = (y - 1) * self.tileSize
                 }
@@ -257,6 +265,30 @@ function Map:draw()
                 end
             end
         end
+    end
+
+    -- Draw rifle spawn if available
+    if self.rifleSpawn and not self._rifleImage then
+        local ok, img = pcall(love.graphics.newImage, "sprites/items/rifle.png")
+        if ok and img then
+            self._rifleImage = img
+        end
+    end
+
+    if self.rifleSpawn and self._rifleImage then
+        local iw, ih = self._rifleImage:getDimensions()
+        local scale = math.min(self.tileSize / iw, self.tileSize / ih, 1)
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.draw(
+            self._rifleImage,
+            self.rifleSpawn.x + self.tileSize / 2,
+            self.rifleSpawn.y + self.tileSize / 2,
+            0,
+            scale,
+            scale,
+            iw / 2,
+            ih / 2
+        )
     end
 
     love.graphics.setColor(1, 1, 1)

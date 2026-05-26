@@ -51,6 +51,12 @@ end
 local function getEntityKey(segments)
     if segments[1] == "zombies" and segments[2] then
         return "zombies." .. segments[2]
+    elseif segments[1] == "player" and segments[2] == "idle" then
+        return nil
+    elseif segments[1] == "player" and (segments[2] == "shot" or segments[2] == "walk") and (segments[3] == "pistol" or segments[3] == "rifle") then
+        return "player." .. segments[3]
+    elseif segments[1] == "player" and (segments[2] == "pistol" or segments[2] == "rifle") then
+        return "player." .. segments[2]
     end
     return segments[1]
 end
@@ -97,6 +103,30 @@ local function loadRawFrames(path)
     table.sort(imageFiles, sortNames)
     local frames = {}
     for _, fileName in ipairs(imageFiles) do
+        local fullPath = path .. "/" .. fileName
+        local image = love.graphics.newImage(fullPath)
+        local width, height = image:getDimensions()
+        local quad = love.graphics.newQuad(0, 0, width, height, width, height)
+        table.insert(frames, {
+            image = image,
+            quad = quad,
+            width = width,
+            height = height,
+            originX = width / 2,
+            originY = height / 2
+        })
+    end
+    return frames
+end
+
+local function loadRawFramesFromFiles(path, files)
+    if not files or #files == 0 then
+        return nil
+    end
+
+    table.sort(files, sortNames)
+    local frames = {}
+    for _, fileName in ipairs(files) do
         local fullPath = path .. "/" .. fileName
         local image = love.graphics.newImage(fullPath)
         local width, height = image:getDimensions()
@@ -190,6 +220,33 @@ local function scanDirectory(path, segments, rawSets)
                 rawSets[entityKey] = rawSets[entityKey] or {}
                 rawSets[entityKey][category] = frames
                 print("[SpriteLoader] Loaded:", entityKey, category, "#frames=", #frames, "path=", path)
+            end
+        elseif segments[1] == "player" and segments[2] == "idle" then
+            local weaponFiles = {
+                pistol = {},
+                rifle = {}
+            }
+            for _, item in ipairs(items) do
+                if item:match("%.png$") then
+                    local lowerName = item:lower()
+                    if lowerName:find("pistol") then
+                        table.insert(weaponFiles.pistol, item)
+                    elseif lowerName:find("rifle") then
+                        table.insert(weaponFiles.rifle, item)
+                    end
+                end
+            end
+
+            for weaponId, files in pairs(weaponFiles) do
+                if #files > 0 then
+                    local frames = loadRawFramesFromFiles(path, files)
+                    if frames then
+                        local idleSet = "player." .. weaponId
+                        rawSets[idleSet] = rawSets[idleSet] or {}
+                        rawSets[idleSet].idle = frames
+                        print("[SpriteLoader] Loaded:", idleSet, "idle", "#frames=", #frames, "path=", path)
+                    end
+                end
             end
         end
     end
