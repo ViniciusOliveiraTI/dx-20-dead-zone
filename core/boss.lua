@@ -6,17 +6,18 @@ local SpriteNormalizer = require("systems.sprite_normalizer")
 local DEATH_DURATION = 1.4
 local FIRE_DURATION = 3.0
 local FIRE_COOLDOWN = 7
-local FIRE_PREPARE = 1
+local FIRE_PREPARE = 0.5
 local FIRE_DAMAGE_TICK = 0.3
 
 local Boss = {}
 Boss.__index = Boss
 
-function Boss.new(x, y)
+function Boss.new(x, y, audioManager)
     local self = setmetatable({}, Boss)
 
     self.x = x or 0
     self.y = y or 0
+    self.audioManager = audioManager
 
     self.width = 64
     self.height = 96
@@ -47,6 +48,8 @@ function Boss.new(x, y)
     self.isPreparingFire = false
     self.fireDelayTimer = 0.0
     self.meleePause = 0.0
+    self.roarTimer = 0.0
+    self.nextRoarTime = love.math.random(8, 16)
 
     local sets = SpriteLoader.getSet("zombies.boss")
     self.animations = {
@@ -117,6 +120,15 @@ function Boss:update(dt, player, gameMap)
             self.currentAnimation:update(dt)
         end
         return
+    end
+
+    if self.audioManager and self.alive then
+        self.roarTimer = self.roarTimer + dt
+        if self.roarTimer >= self.nextRoarTime then
+            self.audioManager:playSoundEffect("boss_roar")
+            self.roarTimer = 0
+            self.nextRoarTime = love.math.random(8, 16)
+        end
     end
 
     local cx = self.x + self.width / 2

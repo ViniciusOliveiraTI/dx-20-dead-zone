@@ -15,7 +15,7 @@ function Player.new(x, y, inventory)
     self.height = 30
     self.speed = 200
 
-    self.maxHealth = 10000000000
+    self.maxHealth = 200
     self.health = self.maxHealth
     self.inventory = inventory
 

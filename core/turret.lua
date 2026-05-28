@@ -8,13 +8,14 @@ local DEATH_DURATION = 1.0
 local Turret = {}
 Turret.__index = Turret
 
-function Turret.new(x, y, worldWidth, worldHeight)
+function Turret.new(x, y, worldWidth, worldHeight, audioManager)
     local self = setmetatable({}, Turret)
 
     self.x = x or 0
     self.y = y or 0
     self.width = 26
     self.height = 34
+    self.audioManager = audioManager
     self.speed = 0
 
     self.damage = 12
@@ -104,6 +105,9 @@ function Turret:update(dt, player, projectiles)
         if self.currentAnimation:getCurrentIndex() >= mid then
             local dir = self.pendingFireDir or { x = 0, y = 0 }
             table.insert(projectiles, Projectile.new(centerX, centerY, dir.x, dir.y, self.damage, true))
+            if self.audioManager then
+                self.audioManager:playSoundEffect("turret_shot")
+            end
             self.pendingFire = false
             self.pendingFireDir = nil
         end

@@ -15,8 +15,8 @@ AudioManager.__index = AudioManager
 -- Configuração Padrão
 -- ============================================
 local DEFAULT_CONFIG = {
-    musicVolume = 0.7,      -- Volume padrão da música (0.0 a 1.0)
-    sfxVolume = 0.8,        -- Volume padrão de efeitos (0.0 a 1.0)
+    musicVolume = 0.4,      -- Volume padrão da música (0.0 a 1.0)
+    sfxVolume = 0.2,        -- Volume padrão de efeitos (0.0 a 1.0)
     musicPath = nil,        -- Caminho do arquivo de música
     loopMusic = true,       -- Reproduzir em loop
 }
@@ -40,6 +40,7 @@ function AudioManager.new(config)
     
     self.currentMusic = nil      -- Áudio da música atual
     self.soundEffects = {}       -- Tabela de efeitos sonoros carregados
+    self.soundEffectGroups = {}  -- Grupos de efeitos para randomização
     self.activeSounds = {}       -- Sons atualmente tocando
     self.musicPaused = false     -- Estado de pausa da música
     
@@ -122,6 +123,54 @@ function AudioManager:loadSoundEffect(name, path)
     return true
 end
 
+--- Carregar todos os efeitos de um diretório em um grupo
+-- @param groupName: nome lógico do grupo
+-- @param dirPath: caminho do diretório
+-- @param pattern: padrão Lua para corresponder nomes de arquivo (opcional)
+function AudioManager:loadSoundEffectGroup(groupName, dirPath, pattern)
+    if not love.filesystem.getInfo(dirPath) then
+        print(string.format("[AudioManager] ERRO: Diretório não encontrado: %s", dirPath))
+        return false
+    end
+
+    local items = love.filesystem.getDirectoryItems(dirPath)
+    local added = 0
+
+    pattern = pattern or ".+"
+    self.soundEffectGroups[groupName] = self.soundEffectGroups[groupName] or {}
+
+    for _, item in ipairs(items) do
+        if item:match(pattern) then
+            local name = item:gsub("%.%w+$", "")
+            local path = dirPath .. "/" .. item
+            if self:loadSoundEffect(name, path) then
+                table.insert(self.soundEffectGroups[groupName], name)
+                added = added + 1
+            end
+        end
+    end
+
+    if added > 0 then
+        print(string.format("[AudioManager] ✓ Grupo de efeitos '%s' carregado com %d arquivos", groupName, added))
+        return true
+    end
+
+    print(string.format("[AudioManager] Aviso: nenhum arquivo carregado para o grupo '%s'", groupName))
+    return false
+end
+
+--- Reproduzir um efeito aleatório de um grupo
+function AudioManager:playRandomSoundEffect(groupName, volume)
+    local group = self.soundEffectGroups[groupName]
+    if not group or #group == 0 then
+        print(string.format("[AudioManager] ERRO: Grupo de efeitos '%s' vazio ou não carregado", groupName))
+        return false
+    end
+
+    local name = group[love.math.random(1, #group)]
+    return self:playSoundEffect(name, volume)
+end
+
 -- ============================================
 -- Métodos de Reprodução
 -- ============================================
@@ -152,7 +201,8 @@ function AudioManager:playSoundEffect(name, volume)
         return false
     end
     
-    local sfx = self.soundEffects[name]
+    local original = self.soundEffects[name]
+    local sfx = original:clone()
     
     -- Definir volume específico se fornecido
     if volume then
@@ -161,9 +211,8 @@ function AudioManager:playSoundEffect(name, volume)
         sfx:setVolume(self.sfxVolume)
     end
     
-    -- Reiniciar o som do início
-    sfx:seek(0)
     sfx:play()
+    table.insert(self.activeSounds, sfx)
     return true
 end
 
@@ -215,6 +264,12 @@ end
 --- Parar todos os efeitos sonoros
 function AudioManager:stopAllSoundEffects()
     for _, sfx in pairs(self.soundEffects) do
+        if sfx:isPlaying() then
+            sfx:stop()
+        end
+    end
+
+    for _, sfx in ipairs(self.activeSounds) do
         if sfx:isPlaying() then
             sfx:stop()
         end
@@ -321,8 +376,12 @@ end
 
 --- Chamar a cada frame (não é obrigatório, mas recomendado para futuras melhorias)
 function AudioManager:update(dt)
-    -- Reservado para futuras funcionalidades
-    -- Como fade in/out, crossfade entre músicas, etc
+    for i = #self.activeSounds, 1, -1 do
+        local source = self.activeSounds[i]
+        if not source:isPlaying() then
+            table.remove(self.activeSounds, i)
+        end
+    end
 end
 
 -- ============================================
@@ -333,8 +392,15 @@ end
 function AudioManager:destroy()
     self:stopMusic()
     self:stopAllSoundEffects()
+    for _, source in ipairs(self.activeSounds) do
+        if source:isPlaying() then
+            source:stop()
+        end
+    end
     self.currentMusic = nil
     self.soundEffects = {}
+    self.soundEffectGroups = {}
+    self.activeSounds = {}
     print("[AudioManager] ✓ Áudio descarregado")
 end
 

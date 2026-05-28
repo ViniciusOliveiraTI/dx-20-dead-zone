@@ -53,6 +53,8 @@ local defaultFont
 
 local audioManager = nil
 local audioConfig = nil
+local zombieRoarTimer = 0
+local zombieRoarNextTime = love.math.random(6, 12)
 
 local function createPlayer(existingInventory)
     local pistol = Weapon.new({
@@ -104,13 +106,16 @@ local function spawnTurrets()
         -- pass world dimensions so turrets can compute a proportional shoot range
         local worldW = gameMap.width * gameMap.tileSize
         local worldH = gameMap.height * gameMap.tileSize
-        table.insert(turrets, Turret.new(spawn.x, spawn.y, worldW, worldH))
+        table.insert(turrets, Turret.new(spawn.x, spawn.y, worldW, worldH, audioManager))
     end
 end
 
 local function spawnBoss()
     local bossPosition = gameMap.bossSpawn or { x = math.max(0, gameMap.width * gameMap.tileSize / 2 - 32), y = math.max(0, gameMap.height * gameMap.tileSize / 2 - 40) }
-    boss = Boss.new(bossPosition.x, bossPosition.y)
+    boss = Boss.new(bossPosition.x, bossPosition.y, audioManager)
+    if audioManager then
+        audioManager:playSoundEffect("boss_appear")
+    end
     winCondition:markBossSpawned()
     -- Clear all remaining zombies and disable spawner for boss fight
     zombies = {}
@@ -321,6 +326,19 @@ local function drawRiflePrompt()
     love.graphics.setColor(1, 1, 1, 1)
 end
 
+local function updateZombieRoars(dt)
+    if not audioManager or #zombies == 0 then
+        return
+    end
+
+    zombieRoarTimer = zombieRoarTimer + dt
+    if zombieRoarTimer >= zombieRoarNextTime then
+        audioManager:playRandomSoundEffect("zombie_roar")
+        zombieRoarTimer = 0
+        zombieRoarNextTime = love.math.random(8, 14)
+    end
+end
+
 local function drawPlayerHealthBar()
     if not player then
         return
@@ -359,6 +377,14 @@ local function initializeAudio()
         sfxVolume = audioConfig.sfxVolume,
         loopMusic = true
     })
+
+    -- Carregar sons do jogo
+    audioManager:loadSoundEffect("pistol_shot", "assets/sounds/pistol_shot.wav")
+    audioManager:loadSoundEffect("rifle_shot", "assets/sounds/rifle_shot.wav")
+    audioManager:loadSoundEffect("turret_shot", "assets/sounds/turret_shot.wav")
+    audioManager:loadSoundEffect("boss_appear", "assets/sounds/boss_appear.wav")
+    audioManager:loadSoundEffect("boss_roar", "assets/sounds/boss_roar.wav")
+    audioManager:loadSoundEffectGroup("zombie_roar", "assets/sounds", "^zombie_roar_%d+%.wav$")
     
     -- Carregar música de fundo
     -- IMPORTANTE: Substitua o caminho abaixo pelo seu arquivo de música
@@ -398,7 +424,7 @@ local function resetGame(resetProgress)
     camera:setWorldSize(gameMap.width * gameMap.tileSize, gameMap.height * gameMap.tileSize)
 
     moveAction = PlayerMoveAction.new(player)
-    shootAction = PlayerShootAction.new(player, projectiles, camera)
+    shootAction = PlayerShootAction.new(player, projectiles, camera, audioManager)
     reloadAction = PlayerReloadAction.new(player)
 
     local levelConfig = LevelConfig.getForLevel(winCondition.currentLevel)
@@ -435,6 +461,7 @@ function love.update(dt)
         audioManager:update(dt)
     end
 
+    updateZombieRoars(dt)
     moveAction:execute(dt, gameMap, gameState)
     camera:update(player)
     shootAction:execute(gameState)
