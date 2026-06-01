@@ -4,11 +4,30 @@ local SpriteLoader = require("core.sprite_loader")
 local SpriteNormalizer = require("systems.sprite_normalizer")
 
 local DEATH_DURATION = 1.0
+local SHARED_FIRE_INTERVAL = 0.18
+local SHARED_SOUND_INTERVAL = 0.12
+
+local lastSharedFireTime = -math.huge
+local lastSharedSoundTime = -math.huge
+
+local function currentTime()
+    if love and love.timer and love.timer.getTime then
+        return love.timer.getTime()
+    end
+    return 0
+end
+
+local function cloneAnimation(animation)
+    if animation and animation.clone then
+        return animation:clone()
+    end
+    return animation
+end
 
 local Turret = {}
 Turret.__index = Turret
 
-function Turret.new(x, y, worldWidth, worldHeight, audioManager)
+function Turret.new(x, y, worldWidth, worldHeight, audioManager, shootRange)
     local self = setmetatable({}, Turret)
 
     self.x = x or 0
@@ -33,8 +52,8 @@ function Turret.new(x, y, worldWidth, worldHeight, audioManager)
     self.state = "idle"
     local sets = SpriteLoader.getSet("turret")
     self.animations = {
-        idle = sets.idle or Animation.new({}, 0.15, true),
-        attack = sets.shot or sets.attack or sets.idle or Animation.new({}, 0.1, true)
+        idle = cloneAnimation(sets.idle) or Animation.new({}, 0.15, true),
+        attack = cloneAnimation(sets.shot or sets.attack or sets.idle) or Animation.new({}, 0.1, true)
     }
     self.currentAnimation = self.animations.idle
 
@@ -52,7 +71,9 @@ function Turret.new(x, y, worldWidth, worldHeight, audioManager)
     end
 
     -- Compute shoot range proportional to map/world size if provided, otherwise fallback heuristic
-    if worldWidth and worldHeight then
+    if shootRange then
+        self.shootRange = shootRange
+    elseif worldWidth and worldHeight then
         local minDim = math.min(worldWidth, worldHeight)
         -- turrets shoot up to ~15% of the smaller world dimension by default
         self.shootRange = math.max(64, math.floor(minDim * 0.25))
@@ -64,6 +85,30 @@ function Turret.new(x, y, worldWidth, worldHeight, audioManager)
     print("[Turret] shootRange=", self.shootRange)
 
     return self
+end
+
+function Turret.canStartSharedFire()
+    local now = currentTime()
+    if now - lastSharedFireTime < SHARED_FIRE_INTERVAL then
+        return false
+    end
+
+    lastSharedFireTime = now
+    return true
+end
+
+function Turret.playSharedShotSound(audioManager)
+    if not audioManager then
+        return
+    end
+
+    local now = currentTime()
+    if now - lastSharedSoundTime < SHARED_SOUND_INTERVAL then
+        return
+    end
+
+    lastSharedSoundTime = now
+    audioManager:playSoundEffect("turret_shot")
 end
 
 function Turret:update(dt, player, projectiles)
@@ -105,9 +150,7 @@ function Turret:update(dt, player, projectiles)
         if self.currentAnimation:getCurrentIndex() >= mid then
             local dir = self.pendingFireDir or { x = 0, y = 0 }
             table.insert(projectiles, Projectile.new(centerX, centerY, dir.x, dir.y, self.damage, true))
-            if self.audioManager then
-                self.audioManager:playSoundEffect("turret_shot")
-            end
+            Turret.playSharedShotSound(self.audioManager)
             self.pendingFire = false
             self.pendingFireDir = nil
         end
@@ -129,7 +172,11 @@ function Turret:update(dt, player, projectiles)
 
     -- Only fire if player is within shootRange
     if self.shootRange and len <= self.shootRange and len > 0 then
-        self.attackTimer = self.attackTimer - self.attackCooldown
+        if not Turret.canStartSharedFire() then
+            return
+        end
+
+        self.attackTimer = 0
         -- Trigger shot animation and defer projectile spawn until animation timing
         self:changeState("attack")
         -- queue projectile to spawn when animation reaches its mid frame

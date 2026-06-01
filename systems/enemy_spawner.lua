@@ -38,7 +38,7 @@ function EnemySpawner:update(dt, gameState, winCondition)
         return
     end
 
-    if winCondition and winCondition:isLevelComplete() then
+    if winCondition and winCondition.hasKillTarget and winCondition:hasKillTarget() then
         return
     end
 

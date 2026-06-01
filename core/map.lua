@@ -15,6 +15,7 @@ function Map.new(tileSize)
     self.turretSpawns = {}
     self.bossSpawn = nil
     self.rifleSpawn = nil
+    self.fragmentSpawns = {}
 
     return self
 end
@@ -28,6 +29,7 @@ function Map:loadFromFile(path)
     self.turretSpawns = {}
     self.bossSpawn = nil
     self.rifleSpawn = nil
+    self.fragmentSpawns = {}
 
     local y = 1
     for line in love.filesystem.lines(path) do
@@ -66,6 +68,12 @@ function Map:loadFromFile(path)
                     x = (x - 1) * self.tileSize,
                     y = (y - 1) * self.tileSize
                 }
+                char = "."
+            elseif char == "F" then
+                table.insert(self.fragmentSpawns, {
+                    x = (x - 1) * self.tileSize + self.tileSize / 2,
+                    y = (y - 1) * self.tileSize + self.tileSize / 2
+                })
                 char = "."
             end
 
@@ -200,6 +208,7 @@ function Map:validateSpawnPoints()
     local reachable = self:findReachableTiles(startTx, startTy)
     self.enemySpawns = self:repairSpawnList(self.enemySpawns, reachable)
     self.turretSpawns = self:repairSpawnList(self.turretSpawns, reachable)
+    self.fragmentSpawns = self:repairSpawnList(self.fragmentSpawns, reachable)
 
     if self.bossSpawn then
         local btX, btY = self:tileCoords(self.bossSpawn.x, self.bossSpawn.y)

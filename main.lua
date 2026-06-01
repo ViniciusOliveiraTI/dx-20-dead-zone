@@ -10,6 +10,8 @@ local PlayerReloadAction = require("actions.player_reload_action")
 
 local Inventory = require("core.inventory")
 local ItemPickup = require("core.item_pickup")
+local FragmentPickup = require("core.fragment_pickup")
+local DXSamplePickup = require("core.dx_sample_pickup")
 local Turret = require("core.turret")
 local Boss = require("core.boss")
 
@@ -21,6 +23,7 @@ local Lighting = require("systems.lighting")
 
 local HealthBar = require("ui.health_bar")
 local HUD = require("ui.hud")
+local MainMenu = require("ui.main_menu")
 local PauseMenu = require("ui.pause_menu")
 local GameOverScreen = require("ui.game_over_screen")
 local WinScreen = require("ui.win_screen")
@@ -42,6 +45,8 @@ local zombies = {}
 local turrets = {}
 local pickups = {}
 local healthPickups = {}
+local fragments = {}
+local dxSample = nil
 local pickupNotifications = {}
 local boss
 local lighting
@@ -50,6 +55,12 @@ local bossWarningElapsed = 0
 local bossWarningDuration = 3.0
 local bossWarningFont
 local defaultFont
+local previousPlayerHealth = nil
+local damageFlashTimer = 0
+local damageFlashDuration = 0.45
+local screenShakeTimer = 0
+local screenShakeDuration = 0.22
+local screenShakeIntensity = 6
 
 local audioManager = nil
 local audioConfig = nil
@@ -106,7 +117,7 @@ local function spawnTurrets()
         -- pass world dimensions so turrets can compute a proportional shoot range
         local worldW = gameMap.width * gameMap.tileSize
         local worldH = gameMap.height * gameMap.tileSize
-        table.insert(turrets, Turret.new(spawn.x, spawn.y, worldW, worldH, audioManager))
+        table.insert(turrets, Turret.new(spawn.x, spawn.y, worldW, worldH, audioManager, levelConfig.turretRange))
     end
 end
 
@@ -148,6 +159,17 @@ local function spawnMedkitAt(x, y, amount)
     table.insert(pickups, ItemPickup.new(x, y, "medkit", amount))
 end
 
+local function spawnFragments()
+    fragments = {}
+    for _, spawn in ipairs(gameMap.fragmentSpawns or {}) do
+        table.insert(fragments, FragmentPickup.new(spawn.x, spawn.y))
+    end
+end
+
+local function spawnDXSampleAt(x, y)
+    dxSample = DXSamplePickup.new(x, y)
+end
+
 local function addPickupNotification(text, x, y, itemType)
     -- Determina cor baseada no tipo de item
     local color = { r = 0.2, g = 0.8, b = 1 }  -- Padrão: Azul (munição)
@@ -158,6 +180,10 @@ local function addPickupNotification(text, x, y, itemType)
         color = { r = 1, g = 0.6, b = 0.2 }    -- Laranja: Munição Rifle
     elseif itemType == "ammo_pistol" then
         color = { r = 0.2, g = 0.8, b = 1 }    -- Azul: Munição Pistola
+    elseif itemType == "fragment" then
+        color = { r = 0.4, g = 0.95, b = 1 }    -- Ciano: Fragmento
+    elseif itemType == "dx_sample" then
+        color = { r = 0.2, g = 1, b = 0.35 }    -- Verde: Amostra DX
     end
 
     table.insert(pickupNotifications, {
@@ -326,6 +352,49 @@ local function drawRiflePrompt()
     love.graphics.setColor(1, 1, 1, 1)
 end
 
+local function drawDXSamplePrompt()
+    if not dxSample or not player then
+        return
+    end
+
+    local px = player.x + player.width / 2
+    local py = player.y + player.height / 2
+    local dist = math.sqrt((px - dxSample.centerX) ^ 2 + (py - dxSample.centerY) ^ 2)
+    if dist > 120 then
+        return
+    end
+
+    local font = defaultFont or love.graphics.getFont()
+    love.graphics.setFont(font)
+    local text = "Pressione E para coletar a Amostra DX"
+    local textWidth = font:getWidth(text)
+    local x = love.graphics.getWidth() / 2 - textWidth / 2 - 14
+    local y = love.graphics.getHeight() * 0.24
+
+    love.graphics.setColor(0.02, 0.12, 0.06, 0.75)
+    love.graphics.rectangle("fill", x, y, textWidth + 28, 34, 8, 8)
+    love.graphics.setColor(0.2, 1, 0.4, 0.9)
+    love.graphics.rectangle("line", x, y, textWidth + 28, 34, 8, 8)
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.print(text, x + 14, y + 8)
+end
+
+local function drawCollectibleLights()
+    if not lighting or not camera then
+        return
+    end
+
+    for _, fragment in ipairs(fragments) do
+        local sx, sy = camera:toScreen(fragment.centerX, fragment.centerY)
+        lighting:drawCircularGlow(sx, sy, 52, {0.15, 0.65, 1}, 0.75)
+    end
+
+    if dxSample then
+        local sx, sy = camera:toScreen(dxSample.centerX, dxSample.centerY)
+        lighting:drawCircularGlow(sx, sy, 68, {0.15, 1, 0.35}, 0.9)
+    end
+end
+
 local function updateZombieRoars(dt)
     if not audioManager or #zombies == 0 then
         return
@@ -344,24 +413,59 @@ local function drawPlayerHealthBar()
         return
     end
 
-    local font = defaultFont or love.graphics.getFont()
-    love.graphics.setFont(font)
-    local label = string.format("HP: %d / %d", player.health, player.maxHealth)
-    local labelWidth = font:getWidth(label)
-    local barWidth = 120
-    local barHeight = 10
-    local padding = 25
-    local totalWidth = barWidth + 12 + labelWidth
-    local x = love.graphics.getWidth() - totalWidth - padding
-    local y = padding
+    local width = 270
+    local height = 20
+    local x = love.graphics.getWidth() - width - 24
+    local y = 20
+    HealthBar.drawPlayerFrame(x, y, width, height, player.health, player.maxHealth)
+end
 
-    love.graphics.setColor(0, 0, 0, 0.55)
-    love.graphics.rectangle("fill", x - 8, y - 8, totalWidth + 16, barHeight + 16, 10, 10)
+local function triggerDamageFeedback()
+    damageFlashTimer = damageFlashDuration
+    screenShakeTimer = screenShakeDuration
+end
 
-    HealthBar.draw(x, y, barWidth, barHeight, player.health, player.maxHealth, "horizontal", true)
+local function updateDamageFeedback(dt)
+    damageFlashTimer = math.max(0, damageFlashTimer - dt)
+    screenShakeTimer = math.max(0, screenShakeTimer - dt)
+end
+
+local function applyScreenShake()
+    if screenShakeTimer <= 0 then
+        return
+    end
+
+    local ratio = screenShakeTimer / screenShakeDuration
+    local amount = screenShakeIntensity * ratio
+    love.graphics.translate(
+        love.math.random(-amount, amount),
+        love.math.random(-amount, amount)
+    )
+end
+
+local function drawDamageOverlay()
+    if damageFlashTimer <= 0 then
+        return
+    end
+
+    local w, h = love.graphics.getWidth(), love.graphics.getHeight()
+    local t = damageFlashTimer / damageFlashDuration
+    local maxAlpha = 0.34 * t
+
+    for i = 1, 10 do
+        local p = i / 10
+        local a = maxAlpha * (1 - p) ^ 1.4
+        local insetX = w * 0.035 * i
+        local insetY = h * 0.035 * i
+
+        love.graphics.setColor(0.85, 0.02, 0.02, a)
+        love.graphics.rectangle("fill", 0, 0, w, insetY)
+        love.graphics.rectangle("fill", 0, h - insetY, w, insetY)
+        love.graphics.rectangle("fill", 0, 0, insetX, h)
+        love.graphics.rectangle("fill", w - insetX, 0, insetX, h)
+    end
 
     love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.print(label, x + barWidth + 12, y + barHeight / 2 - font:getHeight() / 2)
 end
 
 -- ============================================
@@ -410,6 +514,8 @@ local function resetGame(resetProgress)
     turrets = {}
     pickups = {}
     healthPickups = {}
+    fragments = {}
+    dxSample = nil
     boss = nil
 
     gameMap = Map.new(32)
@@ -420,6 +526,7 @@ local function resetGame(resetProgress)
         currentInventory = player.inventory
     end
     createPlayer(currentInventory)
+    previousPlayerHealth = player.health
     camera = Camera.new(love.graphics.getWidth(), love.graphics.getHeight())
     camera:setWorldSize(gameMap.width * gameMap.tileSize, gameMap.height * gameMap.tileSize)
 
@@ -430,12 +537,31 @@ local function resetGame(resetProgress)
     local levelConfig = LevelConfig.getForLevel(winCondition.currentLevel)
     spawner = EnemySpawner.new(gameMap, zombies, levelConfig)
     spawnTurrets()
+    spawnFragments()
 
     lighting = Lighting.new(love.graphics.getWidth(), love.graphics.getHeight())
     defaultFont = love.graphics.getFont()
     bossWarningFont = love.graphics.newFont(24)
 
+    if not gameState:isMainMenu() then
+        gameState:set(GameState.states.playing)
+    end
+end
+
+local function startNewGame()
+    resetGame(true)
     gameState:set(GameState.states.playing)
+    if audioManager then
+        audioManager:resumeMusic()
+    end
+end
+
+local function pointInRect(x, y, rect)
+    return rect
+        and x >= rect.x
+        and x <= rect.x + rect.width
+        and y >= rect.y
+        and y <= rect.y + rect.height
 end
 
 function love.load()
@@ -468,6 +594,7 @@ function love.update(dt)
     reloadAction:execute(gameState)
     player:update(dt, camera)
     updatePickupNotifications(dt)
+    updateDamageFeedback(dt)
 
     for i = #projectiles, 1, -1 do
         local p = projectiles[i]
@@ -631,6 +758,34 @@ function love.update(dt)
         end
     end
 
+    for i = #fragments, 1, -1 do
+        local fragment = fragments[i]
+        fragment:update(dt)
+        if Collision.checkAABB(
+            fragment.x,
+            fragment.y,
+            fragment.width,
+            fragment.height,
+            player.x,
+            player.y,
+            player.width,
+            player.height
+        ) then
+            winCondition:registerFragment()
+            addPickupNotification(
+                string.format("Fragmento %d/%d", winCondition.fragmentCount, winCondition:currentFragmentTarget()),
+                fragment.centerX,
+                fragment.centerY,
+                "fragment"
+            )
+            table.remove(fragments, i)
+        end
+    end
+
+    if dxSample then
+        dxSample:update(dt)
+    end
+
     for i = #zombies, 1, -1 do
         local z = zombies[i]
         z:update(dt, player, gameMap)
@@ -651,6 +806,7 @@ function love.update(dt)
     if boss and (boss.alive or boss.dying) then
         boss:update(dt, player, gameMap, projectiles)
         if boss:shouldRemove() then
+            spawnDXSampleAt(boss.x + boss.width / 2, boss.y + boss.height / 2)
             boss = nil
             winCondition:markBossDefeated()
         end
@@ -659,6 +815,11 @@ function love.update(dt)
     if spawner then
         spawner:update(dt, gameState, winCondition)
     end
+
+    if previousPlayerHealth and player.health < previousPlayerHealth then
+        triggerDamageFeedback()
+    end
+    previousPlayerHealth = player.health
 
     if not player:isAlive() then
         gameState:set(GameState.states.game_over)
@@ -690,7 +851,13 @@ function love.update(dt)
 end
 
 function love.draw()
+    if gameState:isMainMenu() then
+        MainMenu.draw()
+        return
+    end
+
     love.graphics.push()
+    applyScreenShake()
     camera:apply()
 
     gameMap:draw()
@@ -701,6 +868,14 @@ function love.draw()
 
     for _, healthPickup in ipairs(healthPickups) do
         healthPickup:draw()
+    end
+
+    for _, fragment in ipairs(fragments) do
+        fragment:draw()
+    end
+
+    if dxSample then
+        dxSample:draw()
     end
 
     for _, z in ipairs(zombies) do
@@ -773,11 +948,14 @@ function love.draw()
     if lighting and player and camera then
         local sx, sy = camera:toScreen(player.x + player.width / 2, player.y + player.height / 2)
         lighting:draw(sx, sy, 150)
+        drawCollectibleLights()
     end
 
     HUD.draw(player, winCondition)
     drawPlayerHealthBar()
     drawRiflePrompt()
+    drawDXSamplePrompt()
+    drawDamageOverlay()
 
     if gameState:isPaused() then
         PauseMenu.draw()
@@ -799,14 +977,37 @@ function love.draw()
 end
 
 function love.keypressed(key)
+    if gameState:isMainMenu() then
+        if key == "return" or key == "space" then
+            startNewGame()
+        end
+        return
+    end
+
     if key == "escape" then
+        local wasPlaying = gameState:isPlaying()
+        local wasPaused = gameState:isPaused()
         gameState:togglePause()
         
-        if audioManager then
+        if audioManager and (wasPlaying or wasPaused) then
             audioManager:toggleMusicPause()
         end
-        
-    elseif key == "r" then
+
+        return
+    end
+
+    if not gameState:isPlaying() then
+        if key == "r" and (gameState:isGameOver() or gameState:isVictory()) then
+            startNewGame()
+        end
+        return
+    end
+
+    if key == "r" then
+        if gameState:isGameOver() or gameState:isVictory() then
+            startNewGame()
+            return
+        end
         local weapon = player and player:getCurrentWeapon()
         if weapon then
             weapon:reload()
@@ -826,6 +1027,18 @@ function love.keypressed(key)
                 player.inventory:addWeapon("rifle", _RIFLE_TEMPLATE)
                 gameMap.rifleSpawn = nil
                 print("[Game] Picked up Rifle!")
+            end
+        end
+
+        if dxSample then
+            local px = player.x + player.width / 2
+            local py = player.y + player.height / 2
+            local distance = math.sqrt((px - dxSample.centerX) ^ 2 + (py - dxSample.centerY) ^ 2)
+
+            if distance < 80 then
+                winCondition:markDXSampleCollected()
+                addPickupNotification("Amostra DX coletada", dxSample.centerX, dxSample.centerY, "dx_sample")
+                dxSample = nil
             end
         end
     end
@@ -848,6 +1061,45 @@ function love.keypressed(key)
                 audioManager:getSFXVolume() * 100,
                 audioManager:isMusicPlaying() and "Sim" or "Não"
             ))
+        end
+    end
+end
+
+function love.mousepressed(x, y, button)
+    if button ~= 1 then
+        return
+    end
+
+    if gameState:isMainMenu() then
+        if pointInRect(x, y, MainMenu.getStartButton()) then
+            startNewGame()
+        end
+        return
+    end
+
+    if gameState:isPaused() then
+        local buttons = PauseMenu.getButtons()
+        if pointInRect(x, y, buttons.resume) then
+            gameState:set(GameState.states.playing)
+            if audioManager then
+                audioManager:resumeMusic()
+            end
+        elseif pointInRect(x, y, buttons.restart) then
+            startNewGame()
+        end
+        return
+    end
+
+    if gameState:isGameOver() then
+        if pointInRect(x, y, GameOverScreen.getRestartButton()) then
+            startNewGame()
+        end
+        return
+    end
+
+    if gameState:isVictory() then
+        if pointInRect(x, y, WinScreen.getRestartButton()) then
+            startNewGame()
         end
     end
 end

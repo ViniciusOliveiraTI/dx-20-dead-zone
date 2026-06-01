@@ -1,18 +1,19 @@
+local MenuStyle = require("ui.menu_style")
+
 local GameOverScreen = {}
 GameOverScreen.__index = GameOverScreen
 
-function GameOverScreen.draw()
-    love.graphics.setColor(0, 0, 0, 0.6)
-    love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), love.graphics.getHeight())
+function GameOverScreen.getRestartButton()
+    local x, y, w, h = MenuStyle.buttonRect(1, 1)
+    return { x = x, y = y, width = w, height = h }
+end
 
-    love.graphics.setColor(1, 1, 1)
-    love.graphics.printf(
-        "Game Over\nPress R to Restart",
-        0,
-        love.graphics.getHeight() * 0.45,
-        love.graphics.getWidth(),
-        "center"
-    )
+function GameOverScreen.draw()
+    local button = GameOverScreen.getRestartButton()
+
+    MenuStyle.drawBackdrop(0.95)
+    MenuStyle.drawTitle("VOCE MORREU", {0.95, 0.08, 0.05, 1})
+    MenuStyle.drawButton("REINICIAR JOGO", button, true)
 end
 
 return GameOverScreen

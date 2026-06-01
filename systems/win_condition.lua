@@ -15,8 +15,10 @@ function WinCondition.new()
     local self = setmetatable({}, WinCondition)
     self.currentLevel = 1
     self.killCount = 0
+    self.fragmentCount = 0
     self.bossSpawned = false
     self.isBossDefeated = false
+    self.hasDXSample = false
     return self
 end
 
@@ -29,14 +31,30 @@ function WinCondition:currentTarget()
     return config.killTarget or 5
 end
 
+function WinCondition:currentFragmentTarget()
+    local config = LevelConfig.getForLevel(self.currentLevel)
+    return config.fragmentTarget or 0
+end
+
+function WinCondition:hasAllFragments()
+    return self.fragmentCount >= self:currentFragmentTarget()
+end
+
+function WinCondition:hasKillTarget()
+    return self.killCount >= self:currentTarget()
+end
+
 function WinCondition:isLevelComplete()
-    -- Non-final levels: reach kill target
+    -- Non-final levels: reach kill and fragment targets
     if not self:isFinalLevel() then
-        return self.killCount >= self:currentTarget()
+        return self.killCount >= self:currentTarget() and self:hasAllFragments()
     end
     
-    -- Final level: reach kill target AND defeat boss
-    return self.killCount >= self:currentTarget() and self.isBossDefeated
+    -- Final level: reach targets, defeat boss, and collect the DX sample
+    return self.killCount >= self:currentTarget()
+        and self:hasAllFragments()
+        and self.isBossDefeated
+        and self.hasDXSample
 end
 
 function WinCondition:isComplete()
@@ -48,7 +66,7 @@ function WinCondition:isFinalLevel()
 end
 
 function WinCondition:registerKill()
-    if self:isLevelComplete() then
+    if self.killCount >= self:currentTarget() then
         return
     end
 
@@ -59,21 +77,27 @@ function WinCondition:advanceLevel()
     if self.currentLevel < #self.levels then
         self.currentLevel = self.currentLevel + 1
         self.killCount = 0
+        self.fragmentCount = 0
         self.bossSpawned = false
         self.isBossDefeated = false
+        self.hasDXSample = false
     end
 end
 
 function WinCondition:reset()
     self.currentLevel = 1
     self.killCount = 0
+    self.fragmentCount = 0
     self.bossSpawned = false
     self.isBossDefeated = false
+    self.hasDXSample = false
 end
 
 function WinCondition:shouldSpawnBoss()
-    -- Spawn boss when kill target is reached in final level, regardless of boss defeat
-    return self:isFinalLevel() and self.killCount >= self:currentTarget() and not self.bossSpawned
+    return self:isFinalLevel()
+        and self.killCount >= self:currentTarget()
+        and self:hasAllFragments()
+        and not self.bossSpawned
 end
 
 function WinCondition:markBossSpawned()
@@ -82,6 +106,16 @@ end
 
 function WinCondition:markBossDefeated()
     self.isBossDefeated = true
+end
+
+function WinCondition:registerFragment()
+    if self.fragmentCount < self:currentFragmentTarget() then
+        self.fragmentCount = self.fragmentCount + 1
+    end
+end
+
+function WinCondition:markDXSampleCollected()
+    self.hasDXSample = true
 end
 
 return WinCondition

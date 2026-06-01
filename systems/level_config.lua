@@ -5,7 +5,9 @@ local LevelConfig = {
         allowedEnemies = { "normal" },
         allowTurrets = false,
         allowBoss = false,
-        killTarget = 5
+        killTarget = 5,
+        fragmentTarget = 4,
+        turretRange = 260
     },
     [2] = {
         name = "Ala de Segurança",
@@ -13,7 +15,9 @@ local LevelConfig = {
         allowedEnemies = { "normal", "fast" },
         allowTurrets = true,
         allowBoss = false,
-        killTarget = 8
+        killTarget = 8,
+        fragmentTarget = 5,
+        turretRange = 260
     },
     [3] = {
         name = "Sala de Contenção",
@@ -21,7 +25,9 @@ local LevelConfig = {
         allowedEnemies = { "normal", "fast", "brute" },
         allowTurrets = true,
         allowBoss = false,
-        killTarget = 12
+        killTarget = 12,
+        fragmentTarget = 6,
+        turretRange = 280
     },
     [4] = {
         name = "Laboratório Central",
@@ -29,7 +35,9 @@ local LevelConfig = {
         allowedEnemies = { "normal", "fast", "brute" },
         allowTurrets = true,
         allowBoss = false,
-        killTarget = 15
+        killTarget = 15,
+        fragmentTarget = 7,
+        turretRange = 300
     },
     [5] = {
         name = "Zona Central",
@@ -37,7 +45,9 @@ local LevelConfig = {
         allowedEnemies = { "normal", "fast", "brute" },
         allowTurrets = true,
         allowBoss = true,
-        killTarget = 10
+        killTarget = 10,
+        fragmentTarget = 8,
+        turretRange = 300
     }
 }
 

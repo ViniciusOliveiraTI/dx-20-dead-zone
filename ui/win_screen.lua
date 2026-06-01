@@ -1,18 +1,19 @@
+local MenuStyle = require("ui.menu_style")
+
 local WinScreen = {}
 WinScreen.__index = WinScreen
 
-function WinScreen.draw()
-    love.graphics.setColor(0, 0, 0, 0.6)
-    love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), love.graphics.getHeight())
+function WinScreen.getRestartButton()
+    local x, y, w, h = MenuStyle.buttonRect(1, 1)
+    return { x = x, y = y, width = w, height = h }
+end
 
-    love.graphics.setColor(1, 1, 1)
-    love.graphics.printf(
-        "You Win!\nPress R to Restart",
-        0,
-        love.graphics.getHeight() * 0.45,
-        love.graphics.getWidth(),
-        "center"
-    )
+function WinScreen.draw()
+    local button = WinScreen.getRestartButton()
+
+    MenuStyle.drawBackdrop(0.95)
+    MenuStyle.drawTitle("AMOSTRA DX RECUPERADA", {0.26, 1, 0.42, 1})
+    MenuStyle.drawButton("REINICIAR JOGO", button, true)
 end
 
 return WinScreen

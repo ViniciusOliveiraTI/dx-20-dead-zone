@@ -123,4 +123,26 @@ function Lighting:draw(playerX, playerY, radius)
     love.graphics.setColor(1, 1, 1, 1)
 end
 
+function Lighting:drawCircularGlow(x, y, radius, color, intensity)
+    radius = radius or 80
+    color = color or {1, 1, 1}
+    intensity = intensity or 1
+
+    love.graphics.setBlendMode("add")
+
+    for i = 1, 10 do
+        local t = i / 10
+        local r = radius * (1 - t * 0.75)
+        local alpha = intensity * 0.035 * (1 - t)
+        love.graphics.setColor(color[1], color[2], color[3], alpha)
+        love.graphics.circle("fill", x, y, r)
+    end
+
+    love.graphics.setColor(color[1], color[2], color[3], intensity * 0.08)
+    love.graphics.circle("fill", x, y, radius * 0.2)
+
+    love.graphics.setBlendMode("alpha")
+    love.graphics.setColor(1, 1, 1, 1)
+end
+
 return Lighting

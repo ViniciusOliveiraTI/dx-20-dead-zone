@@ -2,6 +2,7 @@ local GameState = {}
 GameState.__index = GameState
 
 GameState.states = {
+    main_menu = "main_menu",
     playing = "playing",
     paused = "paused",
     game_over = "game_over",
@@ -10,7 +11,7 @@ GameState.states = {
 
 function GameState.new()
     local self = setmetatable({}, GameState)
-    self.state = GameState.states.playing
+    self.state = GameState.states.main_menu
     return self
 end
 
@@ -20,6 +21,10 @@ end
 
 function GameState:isPlaying()
     return self.state == GameState.states.playing
+end
+
+function GameState:isMainMenu()
+    return self.state == GameState.states.main_menu
 end
 
 function GameState:isPaused()
