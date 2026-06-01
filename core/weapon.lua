@@ -57,19 +57,20 @@ end
 
 function Weapon:reload()
     if self.isReloading then
-        return
+        return false
     end
 
     if self.reserveAmmo <= 0 then
-        return
+        return false
     end
 
     if self.clipAmmo == self.clipSize then
-        return
+        return false
     end
 
     self.isReloading = true
     self.reloadTimer = 0
+    return true
 end
 
 function Weapon:finishReload()

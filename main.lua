@@ -14,12 +14,16 @@ local FragmentPickup = require("core.fragment_pickup")
 local DXSamplePickup = require("core.dx_sample_pickup")
 local Turret = require("core.turret")
 local Boss = require("core.boss")
+local Zombie = require("core.zombie")
 
 local EnemySpawner = require("systems.enemy_spawner")
 local GameState = require("systems.game_state")
 local WinCondition = require("systems.win_condition")
 local LevelConfig = require("systems.level_config")
 local Lighting = require("systems.lighting")
+local Cutscene = require("systems.cutscene")
+local LevelIntro = require("systems.level_intro")
+local ZombieTypes = require("core.zombie_types")
 
 local HealthBar = require("ui.health_bar")
 local HUD = require("ui.hud")
@@ -52,8 +56,11 @@ local boss
 local lighting
 local bossWarningActive = false
 local bossWarningElapsed = 0
-local bossWarningDuration = 3.0
+local bossWarningDuration = 4.2
 local bossWarningFont
+local bossWarningSmallFont
+local bossRedAlertTimer = 0
+local bossRedAlertDuration = 7.5
 local defaultFont
 local previousPlayerHealth = nil
 local damageFlashTimer = 0
@@ -61,11 +68,22 @@ local damageFlashDuration = 0.45
 local screenShakeTimer = 0
 local screenShakeDuration = 0.22
 local screenShakeIntensity = 6
+local cutscene
+local levelIntro
+local victoryCutsceneStarted = false
 
 local audioManager = nil
 local audioConfig = nil
+local draggingAudioSlider = nil
 local zombieRoarTimer = 0
 local zombieRoarNextTime = love.math.random(6, 12)
+local currentMusicTrack = nil
+
+local MUSIC_TRACKS = {
+    stopped = "assets/music/stoped_game_state.ogg",
+    gameplay = "assets/music/background.ogg",
+    boss = "assets/music/end_game.ogg"
+}
 
 local function createPlayer(existingInventory)
     local pistol = Weapon.new({
@@ -121,12 +139,45 @@ local function spawnTurrets()
     end
 end
 
+local function playMusicTrack(trackName)
+    if not audioManager then
+        return
+    end
+
+    if currentMusicTrack == trackName then
+        audioManager:setSoundEffectsSuppressed(trackName == "stopped")
+        audioManager:resumeMusic()
+        return
+    end
+
+    local path = MUSIC_TRACKS[trackName]
+    if not path then
+        return
+    end
+
+    if audioManager:loadMusic(path, true) then
+        currentMusicTrack = trackName
+        audioManager:setSoundEffectsSuppressed(trackName == "stopped")
+    end
+end
+
+local function playGameplayMusic()
+    if winCondition and winCondition.bossSpawned then
+        playMusicTrack("boss")
+    else
+        playMusicTrack("gameplay")
+    end
+end
+
 local function spawnBoss()
     local bossPosition = gameMap.bossSpawn or { x = math.max(0, gameMap.width * gameMap.tileSize / 2 - 32), y = math.max(0, gameMap.height * gameMap.tileSize / 2 - 40) }
     boss = Boss.new(bossPosition.x, bossPosition.y, audioManager)
     if audioManager then
+        audioManager:playSoundEffect("alarm")
+        audioManager:playSoundEffect("door_explosion")
         audioManager:playSoundEffect("boss_appear")
     end
+    playMusicTrack("boss")
     winCondition:markBossSpawned()
     -- Clear all remaining zombies and disable spawner for boss fight
     zombies = {}
@@ -134,6 +185,55 @@ local function spawnBoss()
     -- trigger boss warning overlay
     bossWarningActive = true
     bossWarningElapsed = 0
+    bossRedAlertTimer = bossRedAlertDuration
+end
+
+local function spawnBossMinions()
+    if not boss or not boss.alive or boss.dying or not gameMap then
+        return
+    end
+
+    local activeBossMinions = 0
+    for _, zombie in ipairs(zombies) do
+        if zombie.spawnedByBoss and (zombie.alive or zombie.dying) then
+            activeBossMinions = activeBossMinions + 1
+        end
+    end
+
+    local availableSlots = 5 - activeBossMinions
+    if availableSlots <= 0 then
+        return
+    end
+
+    local typeNames = { "normal", "fast", "brute" }
+    local amount = math.min(love.math.random(2, 5), availableSlots)
+    local cx = boss.x + boss.width / 2
+    local cy = boss.y + boss.height / 2
+    local spawned = 0
+
+    for i = 1, amount do
+        local typeName = typeNames[love.math.random(1, #typeNames)]
+        local zType = ZombieTypes[typeName]
+
+        for attempt = 1, 14 do
+            local angle = love.math.random() * math.pi * 2
+            local distance = love.math.random(78, 142)
+            local x = cx + math.cos(angle) * distance - 12
+            local y = cy + math.sin(angle) * distance - 15
+
+            if not gameMap:collidesWithRect(x, y, 24, 30) then
+                local minion = Zombie.new(x, y, typeName, zType)
+                minion.spawnedByBoss = true
+                table.insert(zombies, minion)
+                spawned = spawned + 1
+                break
+            end
+        end
+    end
+
+    if spawned > 0 and audioManager then
+        audioManager:playRandomSoundEffect("zombie_roar", 0.28)
+    end
 end
 
 local function spawnAmmoAt(x, y, amount)
@@ -468,6 +568,70 @@ local function drawDamageOverlay()
     love.graphics.setColor(1, 1, 1, 1)
 end
 
+local function drawBossRedAlert()
+    if bossRedAlertTimer <= 0 then
+        return
+    end
+
+    local w, h = love.graphics.getWidth(), love.graphics.getHeight()
+    local life = bossRedAlertTimer / bossRedAlertDuration
+    local pulse = (math.sin(love.timer.getTime() * 12) + 1) / 2
+    local alpha = (0.08 + pulse * 0.2) * life
+
+    love.graphics.setColor(0.85, 0.02, 0.015, alpha)
+    love.graphics.rectangle("fill", 0, 0, w, h)
+
+    love.graphics.setColor(1, 0.04, 0.02, alpha * 0.9)
+    love.graphics.rectangle("fill", 0, 0, w, 8)
+    love.graphics.rectangle("fill", 0, h - 8, w, 8)
+
+    love.graphics.setColor(1, 1, 1, 1)
+end
+
+local function drawBossWarning()
+    if not bossWarningActive then
+        return
+    end
+
+    local w, h = love.graphics.getWidth(), love.graphics.getHeight()
+    local progress = math.min(1, bossWarningElapsed / bossWarningDuration)
+    local fadeIn = math.min(1, bossWarningElapsed / 0.35)
+    local fadeOut = math.min(1, (bossWarningDuration - bossWarningElapsed) / 0.65)
+    local alpha = math.max(0, math.min(fadeIn, fadeOut))
+    local pulse = (math.sin(love.timer.getTime() * 18) + 1) / 2
+    local panelW = math.min(w - 56, 620)
+    local panelH = 136
+    local x = (w - panelW) / 2
+    local y = h * 0.5 - panelH / 2
+
+    love.graphics.setColor(0, 0, 0, 0.58 * alpha)
+    love.graphics.rectangle("fill", 0, 0, w, h)
+
+    love.graphics.setColor(0.08, 0.005, 0.006, 0.9 * alpha)
+    love.graphics.rectangle("fill", x, y, panelW, panelH, 6, 6)
+
+    love.graphics.setColor(1, 0.02, 0.015, (0.45 + pulse * 0.45) * alpha)
+    love.graphics.rectangle("line", x, y, panelW, panelH, 6, 6)
+    love.graphics.rectangle("fill", x + 26, y + 30, panelW - 52, 2)
+    love.graphics.rectangle("fill", x + 26, y + panelH - 32, panelW - 52, 2)
+
+    love.graphics.setFont(bossWarningFont)
+    love.graphics.setColor(0.08, 0, 0, 0.75 * alpha)
+    love.graphics.printf("ELE DESPERTOU", x + 3, y + 43, panelW, "center")
+    love.graphics.setColor(1, 0.08 + pulse * 0.08, 0.06, alpha)
+    love.graphics.printf("ELE DESPERTOU", x, y + 40, panelW, "center")
+
+    love.graphics.setFont(bossWarningSmallFont)
+    love.graphics.setColor(0.86, 0.78, 0.74, 0.88 * alpha)
+    love.graphics.printf("As luzes falham. A contencao acabou.", x + 24, y + 92, panelW - 48, "center")
+
+    love.graphics.setColor(1, 0.02, 0.015, 0.5 * alpha)
+    love.graphics.rectangle("fill", x, y + panelH - 4, panelW * progress, 4)
+
+    love.graphics.setFont(defaultFont)
+    love.graphics.setColor(1, 1, 1, 1)
+end
+
 -- ============================================
 -- Função de Inicialização de Áudio
 -- ============================================
@@ -483,30 +647,25 @@ local function initializeAudio()
     })
 
     -- Carregar sons do jogo
-    audioManager:loadSoundEffect("pistol_shot", "assets/sounds/pistol_shot.wav")
-    audioManager:loadSoundEffect("rifle_shot", "assets/sounds/rifle_shot.wav")
-    audioManager:loadSoundEffect("turret_shot", "assets/sounds/turret_shot.wav")
-    audioManager:loadSoundEffect("boss_appear", "assets/sounds/boss_appear.wav")
-    audioManager:loadSoundEffect("boss_roar", "assets/sounds/boss_roar.wav")
-    audioManager:loadSoundEffectGroup("zombie_roar", "assets/sounds", "^zombie_roar_%d+%.wav$")
-    
-    -- Carregar música de fundo
-    -- IMPORTANTE: Substitua o caminho abaixo pelo seu arquivo de música
-    -- Formatos recomendados: OGG, MP3, WAV
-    -- MP4 pode ter problemas em algumas plataformas
-    local musicPath = "assets/music/background.mp3"  -- AJUSTE ESTE CAMINHO
-    
-    if love.filesystem.getInfo(musicPath) then
-        audioManager:loadMusic(musicPath, true)  -- true = tocar automaticamente
-    else
-        print("[AVISO] Arquivo de música não encontrado: " .. musicPath)
-        print("[AVISO] Caminho relativo: " .. love.filesystem.getWorkingDirectory() .. "/" .. musicPath)
-    end
+    audioManager:loadSoundEffect("pistol_shot", "assets/sounds/shots/pistol_shot.ogg")
+    audioManager:loadSoundEffect("rifle_shot", "assets/sounds/shots/rifle_shot.ogg")
+    audioManager:loadSoundEffect("turret_shot", "assets/sounds/shots/turret_shot.ogg")
+    audioManager:loadSoundEffect("pistol_reloading", "assets/sounds/reloading/pistol_reloading.ogg")
+    audioManager:loadSoundEffect("rifle_reloading", "assets/sounds/reloading/rifle_reloading.ogg")
+    audioManager:loadSoundEffect("alarm", "assets/sounds/boss/spawn/alarm.ogg")
+    audioManager:loadSoundEffect("boss_appear", "assets/sounds/boss/spawn/boss_appear.ogg")
+    audioManager:loadSoundEffect("door_explosion", "assets/sounds/boss/spawn/door_explosion.ogg")
+    audioManager:loadSoundEffectGroup("zombie_roar", "assets/sounds/roars", "^zombie_roar_%d+%.ogg$")
+    audioManager:loadSoundEffectGroup("boss_scream", "assets/sounds/boss/screams", "^boss_scream_%d+%.ogg$")
+
+    currentMusicTrack = nil
+    playMusicTrack("stopped")
 end
 
 local function resetGame(resetProgress)
     if resetProgress then
         winCondition:reset()
+        victoryCutsceneStarted = false
     end
 
     projectiles = {}
@@ -532,7 +691,7 @@ local function resetGame(resetProgress)
 
     moveAction = PlayerMoveAction.new(player)
     shootAction = PlayerShootAction.new(player, projectiles, camera, audioManager)
-    reloadAction = PlayerReloadAction.new(player)
+    reloadAction = PlayerReloadAction.new(player, audioManager)
 
     local levelConfig = LevelConfig.getForLevel(winCondition.currentLevel)
     spawner = EnemySpawner.new(gameMap, zombies, levelConfig)
@@ -541,7 +700,8 @@ local function resetGame(resetProgress)
 
     lighting = Lighting.new(love.graphics.getWidth(), love.graphics.getHeight())
     defaultFont = love.graphics.getFont()
-    bossWarningFont = love.graphics.newFont(24)
+    bossWarningFont = love.graphics.newFont(34)
+    bossWarningSmallFont = love.graphics.newFont(15)
 
     if not gameState:isMainMenu() then
         gameState:set(GameState.states.playing)
@@ -551,9 +711,43 @@ end
 local function startNewGame()
     resetGame(true)
     gameState:set(GameState.states.playing)
+    local levelConfig = LevelConfig.getForLevel(winCondition.currentLevel)
+    levelIntro:show(levelConfig.introTitle or levelConfig.name, levelConfig.introDescription)
+    playGameplayMusic()
+end
+
+local function startIntroCutscene()
     if audioManager then
-        audioManager:resumeMusic()
+        audioManager:pauseMusic()
     end
+
+    gameState:set(GameState.states.cutscene)
+    cutscene:playVideo("assets/cutscenes/start_game.mp4", function()
+        startNewGame()
+    end)
+end
+
+local function startLevelTransition(fromLevel, toLevel)
+    local path = string.format("assets/image/levels/level_%d_to_level_%d.jpeg", fromLevel, toLevel)
+
+    playMusicTrack("stopped")
+    gameState:set(GameState.states.cutscene)
+    cutscene:showImage(path, 5, function()
+        winCondition:advanceLevel()
+        resetGame(false)
+        local levelConfig = LevelConfig.getForLevel(winCondition.currentLevel)
+        levelIntro:show(levelConfig.introTitle or levelConfig.name, levelConfig.introDescription)
+        playGameplayMusic()
+    end)
+end
+
+local function startVictoryCutscene()
+    victoryCutsceneStarted = true
+    playMusicTrack("stopped")
+    gameState:set(GameState.states.cutscene)
+    cutscene:showImage("assets/image/end/victory.jpeg", 10, function()
+        gameState:set(GameState.states.victory)
+    end)
 end
 
 local function pointInRect(x, y, rect)
@@ -564,11 +758,42 @@ local function pointInRect(x, y, rect)
         and y <= rect.y + rect.height
 end
 
+local function persistAudioConfig()
+    if audioManager and audioConfig then
+        audioConfig.musicVolume = audioManager:getMusicVolume()
+        audioConfig.sfxVolume = audioManager:getSFXVolume()
+        AudioConfig.save(audioConfig)
+    end
+end
+
+local function setPauseAudioSlider(sliderId, x)
+    if not audioManager then
+        return
+    end
+
+    local sliders = PauseMenu.getSliders(audioManager)
+    local slider = sliders[sliderId]
+    if not slider then
+        return
+    end
+
+    local value = PauseMenu.sliderValueAt(slider, x)
+    if sliderId == "music" then
+        audioManager:setMusicVolume(value)
+    elseif sliderId == "sfx" then
+        audioManager:setSFXVolume(value)
+    end
+
+    persistAudioConfig()
+end
+
 function love.load()
     love.window.setMode(800, 600)
 
     gameState = GameState.new()
     winCondition = WinCondition.new()
+    cutscene = Cutscene.new()
+    levelIntro = LevelIntro.new()
 
     -- ============================================
     -- INICIALIZAR ÁUDIO
@@ -579,12 +804,22 @@ function love.load()
 end
 
 function love.update(dt)
+    if gameState:isCutscene() then
+        if cutscene then
+            cutscene:update(dt)
+        end
+        return
+    end
+
     if not gameState:canUpdate() then
         return
     end
 
     if audioManager then
         audioManager:update(dt)
+    end
+    if levelIntro then
+        levelIntro:update(dt)
     end
 
     updateZombieRoars(dt)
@@ -805,6 +1040,10 @@ function love.update(dt)
 
     if boss and (boss.alive or boss.dying) then
         boss:update(dt, player, gameMap, projectiles)
+        if boss.consumeSummon and boss:consumeSummon() then
+            spawnBossMinions()
+        end
+
         if boss:shouldRemove() then
             spawnDXSampleAt(boss.x + boss.width / 2, boss.y + boss.height / 2)
             boss = nil
@@ -823,6 +1062,7 @@ function love.update(dt)
 
     if not player:isAlive() then
         gameState:set(GameState.states.game_over)
+        playMusicTrack("stopped")
         return
     end
 
@@ -838,19 +1078,29 @@ function love.update(dt)
         end
     end
 
+    if bossRedAlertTimer > 0 then
+        bossRedAlertTimer = math.max(0, bossRedAlertTimer - dt)
+    end
+
     if not winCondition:isFinalLevel() and winCondition:isLevelComplete() then
-        winCondition:advanceLevel()
-        resetGame(false)
+        startLevelTransition(winCondition.currentLevel, winCondition.currentLevel + 1)
         return
     end
 
-    if winCondition:isLevelComplete() and winCondition:isFinalLevel() then
-        gameState:set(GameState.states.victory)
+    if winCondition:isLevelComplete() and winCondition:isFinalLevel() and not victoryCutsceneStarted then
+        startVictoryCutscene()
         return
     end
 end
 
 function love.draw()
+    if gameState:isCutscene() then
+        if cutscene then
+            cutscene:draw()
+        end
+        return
+    end
+
     if gameState:isMainMenu() then
         MainMenu.draw()
         return
@@ -951,36 +1201,37 @@ function love.draw()
         drawCollectibleLights()
     end
 
+    drawBossRedAlert()
+
     HUD.draw(player, winCondition)
     drawPlayerHealthBar()
     drawRiflePrompt()
     drawDXSamplePrompt()
     drawDamageOverlay()
+    if levelIntro then
+        levelIntro:draw()
+    end
 
     if gameState:isPaused() then
-        PauseMenu.draw()
+        PauseMenu.draw(audioManager)
     elseif gameState:isGameOver() then
         GameOverScreen.draw()
     elseif gameState:isVictory() then
         WinScreen.draw()
     end
 
-    -- Boss spawn warning (screen-space overlay)
-    if bossWarningActive then
-        local alpha = 1 - (bossWarningElapsed / bossWarningDuration)
-        love.graphics.setFont(bossWarningFont)
-        love.graphics.setColor(1, 0.1, 0.1, alpha)
-        love.graphics.printf("FALHA DE CONTENÇÃO. ELE ESTÁ VINDO", 0, love.graphics.getHeight() / 2 - 24, love.graphics.getWidth(), "center")
-        love.graphics.setFont(defaultFont)
-        love.graphics.setColor(1,1,1,1)
-    end
+    drawBossWarning()
 end
 
 function love.keypressed(key)
     if gameState:isMainMenu() then
         if key == "return" or key == "space" then
-            startNewGame()
+            startIntroCutscene()
         end
+        return
+    end
+
+    if gameState:isCutscene() then
         return
     end
 
@@ -989,8 +1240,10 @@ function love.keypressed(key)
         local wasPaused = gameState:isPaused()
         gameState:togglePause()
         
-        if audioManager and (wasPlaying or wasPaused) then
-            audioManager:toggleMusicPause()
+        if wasPlaying then
+            playMusicTrack("stopped")
+        elseif wasPaused then
+            playGameplayMusic()
         end
 
         return
@@ -1009,8 +1262,8 @@ function love.keypressed(key)
             return
         end
         local weapon = player and player:getCurrentWeapon()
-        if weapon then
-            weapon:reload()
+        if weapon and reloadAction then
+            reloadAction:reload()
         end
     elseif key == "q" then
         player:switchWeapon()
@@ -1046,10 +1299,12 @@ function love.keypressed(key)
     if key == "+" or key == "=" then
         if audioManager then
             audioManager:increaseMusicVolume(0.1)
+            persistAudioConfig()
         end
     elseif key == "-" or key == "_" then
         if audioManager then
             audioManager:decreaseMusicVolume(0.1)
+            persistAudioConfig()
         end
     end
     
@@ -1070,20 +1325,34 @@ function love.mousepressed(x, y, button)
         return
     end
 
+    if gameState:isCutscene() then
+        if cutscene then
+            cutscene:mousepressed(x, y, button)
+        end
+        return
+    end
+
     if gameState:isMainMenu() then
         if pointInRect(x, y, MainMenu.getStartButton()) then
-            startNewGame()
+            startIntroCutscene()
         end
         return
     end
 
     if gameState:isPaused() then
+        local sliders = PauseMenu.getSliders(audioManager)
+        for id, slider in pairs(sliders) do
+            if PauseMenu.pointInSlider(x, y, slider) then
+                draggingAudioSlider = id
+                setPauseAudioSlider(id, x)
+                return
+            end
+        end
+
         local buttons = PauseMenu.getButtons()
         if pointInRect(x, y, buttons.resume) then
             gameState:set(GameState.states.playing)
-            if audioManager then
-                audioManager:resumeMusic()
-            end
+            playGameplayMusic()
         elseif pointInRect(x, y, buttons.restart) then
             startNewGame()
         end
@@ -1101,6 +1370,18 @@ function love.mousepressed(x, y, button)
         if pointInRect(x, y, WinScreen.getRestartButton()) then
             startNewGame()
         end
+    end
+end
+
+function love.mousemoved(x, y, dx, dy)
+    if gameState and gameState:isPaused() and draggingAudioSlider then
+        setPauseAudioSlider(draggingAudioSlider, x)
+    end
+end
+
+function love.mousereleased(x, y, button)
+    if button == 1 then
+        draggingAudioSlider = nil
     end
 end
 

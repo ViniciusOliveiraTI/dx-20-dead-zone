@@ -8,6 +8,7 @@ local FIRE_DURATION = 3.0
 local FIRE_COOLDOWN = 7
 local FIRE_PREPARE = 0.5
 local FIRE_DAMAGE_TICK = 0.3
+local SUMMON_COOLDOWN = 15
 
 local Boss = {}
 Boss.__index = Boss
@@ -50,6 +51,8 @@ function Boss.new(x, y, audioManager)
     self.meleePause = 0.0
     self.roarTimer = 0.0
     self.nextRoarTime = love.math.random(8, 16)
+    self.summonTimer = 0.0
+    self.summonReady = false
 
     local sets = SpriteLoader.getSet("zombies.boss")
     self.animations = {
@@ -125,10 +128,16 @@ function Boss:update(dt, player, gameMap)
     if self.audioManager and self.alive then
         self.roarTimer = self.roarTimer + dt
         if self.roarTimer >= self.nextRoarTime then
-            self.audioManager:playSoundEffect("boss_roar")
+            self.audioManager:playRandomSoundEffect("boss_scream")
             self.roarTimer = 0
             self.nextRoarTime = love.math.random(8, 16)
         end
+    end
+
+    self.summonTimer = self.summonTimer + dt
+    if self.summonTimer >= SUMMON_COOLDOWN then
+        self.summonTimer = self.summonTimer - SUMMON_COOLDOWN
+        self.summonReady = true
     end
 
     local cx = self.x + self.width / 2
@@ -224,6 +233,15 @@ function Boss:update(dt, player, gameMap)
     if self.currentAnimation then
         self.currentAnimation:update(dt)
     end
+end
+
+function Boss:consumeSummon()
+    if not self.summonReady or not self.alive or self.dying then
+        return false
+    end
+
+    self.summonReady = false
+    return true
 end
 
 function Boss:draw()

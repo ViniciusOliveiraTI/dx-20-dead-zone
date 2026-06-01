@@ -6,7 +6,8 @@ GameState.states = {
     playing = "playing",
     paused = "paused",
     game_over = "game_over",
-    victory = "victory"
+    victory = "victory",
+    cutscene = "cutscene"
 }
 
 function GameState.new()
@@ -37,6 +38,10 @@ end
 
 function GameState:isVictory()
     return self.state == GameState.states.victory
+end
+
+function GameState:isCutscene()
+    return self.state == GameState.states.cutscene
 end
 
 function GameState:canUpdate()

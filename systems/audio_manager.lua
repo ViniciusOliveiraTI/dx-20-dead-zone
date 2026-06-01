@@ -43,6 +43,7 @@ function AudioManager.new(config)
     self.soundEffectGroups = {}  -- Grupos de efeitos para randomização
     self.activeSounds = {}       -- Sons atualmente tocando
     self.musicPaused = false     -- Estado de pausa da música
+    self.soundEffectsSuppressed = false
     
     return self
 end
@@ -161,6 +162,10 @@ end
 
 --- Reproduzir um efeito aleatório de um grupo
 function AudioManager:playRandomSoundEffect(groupName, volume)
+    if self.soundEffectsSuppressed then
+        return false
+    end
+
     local group = self.soundEffectGroups[groupName]
     if not group or #group == 0 then
         print(string.format("[AudioManager] ERRO: Grupo de efeitos '%s' vazio ou não carregado", groupName))
@@ -196,6 +201,10 @@ end
 -- @param name: nome do efeito carregado
 -- @param volume: volume do efeito (opcional, 0.0 a 1.0)
 function AudioManager:playSoundEffect(name, volume)
+    if self.soundEffectsSuppressed then
+        return false
+    end
+
     if not self.soundEffects[name] then
         print(string.format("[AudioManager] ERRO: Efeito '%s' não carregado", name))
         return false
@@ -214,6 +223,10 @@ function AudioManager:playSoundEffect(name, volume)
     sfx:play()
     table.insert(self.activeSounds, sfx)
     return true
+end
+
+function AudioManager:setSoundEffectsSuppressed(suppressed)
+    self.soundEffectsSuppressed = suppressed == true
 end
 
 -- ============================================
@@ -300,6 +313,10 @@ function AudioManager:setSFXVolume(volume)
     self.sfxVolume = volume
     
     for _, sfx in pairs(self.soundEffects) do
+        sfx:setVolume(volume)
+    end
+
+    for _, sfx in ipairs(self.activeSounds) do
         sfx:setVolume(volume)
     end
     

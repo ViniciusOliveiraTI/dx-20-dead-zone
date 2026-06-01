@@ -7,6 +7,9 @@ function Lighting.new(screenWidth, screenHeight)
 
     self.defaultRadius = 200
     self.defaultSoftness = 45
+    self.playerGlowRadius = 48
+    self.playerGlowSoftness = 28
+    self.playerGlowIntensity = 0.55
 
     local shaderCode = [[
         extern vec2 lightPos;
@@ -14,6 +17,9 @@ function Lighting.new(screenWidth, screenHeight)
         extern number softness;
         extern number angle;
         extern vec3 darkColor;
+        extern number playerGlowRadius;
+        extern number playerGlowSoftness;
+        extern number playerGlowIntensity;
 
         vec4 effect(vec4 color, Image tex, vec2 uv, vec2 sc)
         {
@@ -43,6 +49,14 @@ function Lighting.new(screenWidth, screenHeight)
 
             float t = angleMask * distMask;
 
+            // pequena luz ao redor do jogador para manter o sprite legivel
+            float playerGlow = 1.0 - smoothstep(
+                playerGlowRadius - playerGlowSoftness,
+                playerGlowRadius,
+                dist
+            );
+            t = max(t, playerGlow * playerGlowIntensity);
+
             // cor da lanterna
             vec3 lightColor = vec3(1.0, 0.9, 0.6);
 
@@ -63,6 +77,9 @@ function Lighting.new(screenWidth, screenHeight)
 
             self.shader:send("radius", self.defaultRadius)
             self.shader:send("softness", self.defaultSoftness)
+            self.shader:send("playerGlowRadius", self.playerGlowRadius)
+            self.shader:send("playerGlowSoftness", self.playerGlowSoftness)
+            self.shader:send("playerGlowIntensity", self.playerGlowIntensity)
         else
             self.shader = nil
         end
@@ -92,6 +109,9 @@ function Lighting:draw(playerX, playerY, radius)
         self.shader:send("radius", radius)
         self.shader:send("softness", softness)
         self.shader:send("angle", angle)
+        self.shader:send("playerGlowRadius", self.playerGlowRadius)
+        self.shader:send("playerGlowSoftness", self.playerGlowSoftness)
+        self.shader:send("playerGlowIntensity", self.playerGlowIntensity)
 
         love.graphics.setBlendMode("multiply", "premultiplied")
         love.graphics.setColor(1, 1, 1, 1)
